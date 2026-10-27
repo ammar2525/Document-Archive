@@ -42,6 +42,7 @@ main{max-width:1200px;margin:0 auto;padding:22px 20px 40px}
 .btn.ghost:hover{border-color:var(--gold)}
 .btn.danger{background:#fff;color:var(--red);border:1px solid #efc9c6}
 .btn.gold{background:var(--gold)}
+.btn.wa{background:#1f9d55}.btn.wa:hover{background:#178246}
 .btn.sm{padding:5px 10px;font-size:13px}
 h2{font-size:18px;margin:0 0 12px;color:var(--brand)}
 h3{font-size:16px;margin:0 0 10px}
@@ -124,6 +125,11 @@ textarea{min-height:80px;resize:vertical}
 .banner.r{background:var(--red-soft);color:var(--red)}
 .banner.g{background:var(--gold-soft);color:#6d4d14}
 .empty{text-align:center;padding:28px 16px;color:var(--muted)}
+[hidden]{display:none!important}
+.sess{display:flex;gap:8px;align-items:center}
+.chip{background:rgba(255,255,255,.16);padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+.hbadge{display:inline-block;margin-top:4px;padding:1px 9px;border-radius:999px;background:var(--gold-soft);color:#6d4d14;font-size:12px;font-weight:700}
+label.chk{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink)}
 footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 30px}
 </style>
 </head>
@@ -136,6 +142,7 @@ footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 3
       <p>عمار أحمد النشابة · المرجع العائلي للصور والمستندات</p>
     </div>
     <div class="hsearch"><input id="gq" placeholder="ابحث عن فرد أو مستند أو رقم…"><button class="btn gold" data-act="gsearch">بحث</button></div>
+    <div class="sess" id="sess"></div>
   </div>
   <nav class="nav">
     <button data-act="nav" data-v="home">🏠 الرئيسية</button>
@@ -203,53 +210,79 @@ function docStatus(d){const n=daysUntil(d.expiryDate);if(n===null)return{k:'none
  const r=+d.remindDays||+settings.remindDays||60;
  if(n<=r)return{k:'soon',label:n===0?'ينتهي اليوم':'ينتهي بعد '+daysTxt(n),n};
  return{k:'ok',label:'ساري المفعول',n};}
-function alertsList(){return docs.map(d=>({d,s:docStatus(d)})).filter(o=>o.s.k==='expired'||o.s.k==='soon').sort((a,b)=>a.s.n-b.s.n);}
-function upcomingBdays(lim){return members.map(x=>({x,b:nextBday(x.birthDate)})).filter(o=>o.b&&o.b.days<=lim).sort((a,b)=>a.b.days-b.b.days);}
+function alertsList(){return vDocs().map(d=>({d,s:docStatus(d)})).filter(o=>o.s.k==='expired'||o.s.k==='soon').sort((a,b)=>a.s.n-b.s.n);}
+function upcomingBdays(lim){return vMembers().map(x=>({x,b:nextBday(x.birthDate)})).filter(o=>o.b&&o.b.days<=lim).sort((a,b)=>a.b.days-b.b.days);}
+/* ============ رب الأسرة والخصوصية ============ */
+let session=null;
+async function sha(s){s='aby|'+s;try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(_){let h=5381;for(const c of s)h=((h<<5)+h+c.codePointAt(0))|0;return 'f'+(h>>>0).toString(16);}}
+const isAdmin=()=>!settings.adminPin||session==='admin';
+const isLocked=()=>!!settings.adminPin&&!session;
+const heads=()=>members.filter(m=>m.isHead);
+function headOf(x){if(!x)return null;if(x.isHead)return x;const h=x.headId?byId(x.headId):null;return h&&h.isHead?h:null;}
+function canSee(x){if(!x)return false;if(isAdmin())return true;const h=headOf(x);return !!h&&h.id===session;}
+const vMembers=()=>members.filter(canSee);
+const vDocs=()=>docs.filter(d=>canSee(byId(d.memberId)));
 function avatar(x,cls=''){return x.photo?`<img class="av ${cls}" src="${ourl(x.photo)}" alt="">`:`<div class="av ${cls}">${esc((x.name||'؟').trim().charAt(0))}</div>`;}
 
 /* ============ العرض ============ */
 function go(name,p={}){view={name,...p};render();window.scrollTo(0,0);}
-function render(){freeUrls();searchToken++;
+function renderSess(){const el=$('#sess');const locked=isLocked();
+ document.querySelectorAll('.nav button').forEach(b=>{const v=b.dataset.v;b.hidden=locked||(!isAdmin()&&(v==='library'||v==='settings'));});
+ document.querySelector('.hsearch').hidden=locked;
+ if(!settings.adminPin){el.innerHTML='';return;}
+ if(locked){el.innerHTML='<span class="chip">🔒 مقفل</span>';return;}
+ const h=session==='admin'?null:byId(session);
+ el.innerHTML=`<span class="chip">${session==='admin'?'🛡️ المدير':'👨‍👩‍👧 أسرة '+esc(h?h.name:'')}</span><button class="btn sm ghost" data-act="lock">🔒 قفل</button>`;}
+function render(){freeUrls();searchToken++;renderSess();
+ if(isLocked()){$('#navAlertCount').hidden=true;document.title='أرشيف أبو ياسر';vLock($('#main'));return;}
+ if(!isAdmin()&&['library','settings'].includes(view.name))view={name:'home'};
  const al=alertsList();const pc=$('#navAlertCount');pc.textContent=al.length;pc.hidden=!al.length;
  document.title=(al.length?`(${al.length}) `:'')+'أرشيف أبو ياسر';
  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===view.name||(['member','search'].includes(view.name)&&b.dataset.v==='home')));
  ({home:vHome,member:vMember,alerts:vAlerts,library:vLibrary,settings:vSettings,search:vSearch}[view.name]||vHome)($('#main'));}
 
+function vLock(m){const hs=heads();
+ m.innerHTML=`<div class="card" style="max-width:820px;margin:16px auto;text-align:center"><div style="font-size:44px">🔒</div><h2>اختر أسرتك للدخول</h2><p class="muted small">كل أسرة ترى أفرادها ومستنداتها فقط، ويُطلب رمز الأسرة للدخول.</p>
+ ${hs.length?`<div class="members" style="margin-top:14px">${hs.map(h=>`<div class="mcard" data-act="unlockFam" data-id="${h.id}">${avatar(h)}<div class="nm">أسرة ${esc(h.name)}</div>${h.pin?'':'<div class="small muted">لم يُحدَّد رمز بعد</div>'}</div>`).join('')}</div>`:'<p class="muted">لم يُحدَّد أي رب أسرة بعد.</p>'}
+ <div style="margin-top:12px"><button class="btn gold" data-act="unlockAdmin">🛡️ دخول المدير</button></div></div>`;}
+
 function vHome(m){const al=alertsList();const bd=upcomingBdays(30);
- const exp=al.filter(o=>o.s.k==='expired').length,soon=al.length-exp;
+ const exp=al.filter(o=>o.s.k==='expired').length,soon=al.length-exp;const VM=vMembers(),VD=vDocs();
  const daysSinceBk=settings.lastBackup?Math.round((Date.now()-settings.lastBackup)/864e5):null;
  let h='';
  if(al.length)h+=`<div class="banner r">⚠️ <b>لديك ${al.length} مستند ${exp?`(${exp} منتهٍ)`:''} يحتاج إلى تجديد قريباً.</b><button class="btn sm danger" data-act="nav" data-v="alerts">عرض التنبيهات</button></div>`;
- if(members.length&&(daysSinceBk===null||daysSinceBk>30))h+=`<div class="banner g">💾 ${daysSinceBk===null?'لم تُحفظ أي نسخة احتياطية بعد.':'مضى '+daysTxt(daysSinceBk)+' على آخر نسخة احتياطية.'} يُنصح بحفظ نسخة احتياطية بشكل دوري.<button class="btn sm gold" data-act="nav" data-v="settings">حفظ نسخة الآن</button></div>`;
- h+=`<div class="stats"><div class="stat"><b>${members.length}</b><span>فرد في الأرشيف</span></div><div class="stat"><b>${docs.length}</b><span>مستند رسمي</span></div><div class="stat r"><b>${exp}</b><span>مستند منتهٍ</span></div><div class="stat a"><b>${soon}</b><span>قارب على الانتهاء</span></div></div>`;
+ if(isAdmin()&&!settings.adminPin&&heads().length)h+=`<div class="banner g">🛡️ حدّدت أرباب أسر، لكن الخصوصية غير مفعّلة بعد. حدّد «رمز المدير» من الإعدادات ليُطلب رمز كل أسرة عند الدخول.<button class="btn sm gold" data-act="nav" data-v="settings">الإعدادات</button></div>`;
+ if(isAdmin()&&members.length&&(daysSinceBk===null||daysSinceBk>30))h+=`<div class="banner g">💾 ${daysSinceBk===null?'لم تُحفظ أي نسخة احتياطية بعد.':'مضى '+daysTxt(daysSinceBk)+' على آخر نسخة احتياطية.'} يُنصح بحفظ نسخة احتياطية بشكل دوري.<button class="btn sm gold" data-act="nav" data-v="settings">حفظ نسخة الآن</button></div>`;
+ h+=`<div class="stats"><div class="stat"><b>${VM.length}</b><span>فرد في الأرشيف</span></div><div class="stat"><b>${VD.length}</b><span>مستند رسمي</span></div><div class="stat r"><b>${exp}</b><span>مستند منتهٍ</span></div><div class="stat a"><b>${soon}</b><span>قارب على الانتهاء</span></div></div>`;
  h+=`<div class="grid2"><div class="card"><h2>🔔 تنبيهات الصلاحية</h2>${al.length?`<div class="list">${al.slice(0,6).map(o=>{const x=byId(o.d.memberId);const T=dtype(o.d.type);return x?`<div class="item" data-act="openMember" data-id="${x.id}">${avatar(x,'sm')}<div class="grow"><b>${esc(x.name)}</b><div class="small muted">${T[2]} ${esc(o.d.title||T[1])} — ${fmtD(o.d.expiryDate)}</div></div><span class="badge b-${o.s.k}">${o.s.label}</span></div>`:''}).join('')}</div>`:'<p class="muted">✅ جميع المستندات سارية المفعول.</p>'}</div>
  <div class="card"><h2>🎂 أعياد ميلاد خلال 30 يوماً</h2>${bd.length?`<div class="list">${bd.map(o=>`<div class="item" data-act="openMember" data-id="${o.x.id}">${avatar(o.x,'sm')}<div class="grow"><b>${esc(o.x.name)}</b><div class="small muted">${o.b.date.toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'long'})} — يتم ${o.b.turns} سنة</div></div><span class="badge b-soon">${bdayLabel(o.b)}</span></div>`).join('')}</div>`:'<p class="muted">لا توجد أعياد ميلاد قريبة.</p>'}</div></div>`;
  h+=`<div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0">👨‍👩‍👧‍👦 أفراد الأرشيف</h2><div class="row"><input class="inp" id="mq" placeholder="تصفية بالاسم أو الأسرة…" value="${esc(view.q||'')}"><button class="btn" data-act="addMember">＋ إضافة فرد</button></div></div><div id="grid"></div></div>`;
  m.innerHTML=h;renderGrid();
  $('#mq').oninput=e=>{view.q=e.target.value;renderGrid();};}
 
-function renderGrid(){const q=norm(view.q);const g=$('#grid');
- if(!members.length){g.innerHTML=`<div class="empty"><div style="font-size:44px">📇</div><p>ابدأ بإضافة نفسك ثم أبنائك وأسرهم، ولكل فرد ملفه الخاص بصورته ومستنداته.</p><button class="btn" data-act="addMember">＋ إضافة أول فرد</button></div>`;return;}
- const groups={};members.filter(x=>!q||norm([x.name,x.relation,x.family].join(' ')).includes(q)).forEach(x=>{const k=x.family||'أفراد آخرون';(groups[k]=groups[k]||[]).push(x);});
- const keys=Object.keys(groups).sort((a,b)=>a==='أفراد آخرون'?1:b==='أفراد آخرون'?-1:a.localeCompare(b,'ar'));
- g.innerHTML=keys.length?keys.map(k=>`<div class="gtitle">${esc(k)} <span class="muted small">(${groups[k].length})</span></div><div class="members">${groups[k].map(x=>{const n=docs.filter(d=>d.memberId===x.id&&['expired','soon'].includes(docStatus(d).k)).length;const nb=nextBday(x.birthDate);
-  return `<div class="mcard" data-act="openMember" data-id="${x.id}">${n?`<span class="dot badge b-expired" title="مستندات تحتاج تجديد">⚠ ${n}</span>`:''}${avatar(x)}<div class="nm">${esc(x.name)}</div><div class="small muted">${esc(x.relation||'')}</div>${nb&&nb.days<=7?`<div class="badge b-soon" style="margin-top:4px">🎂 ${bdayLabel(nb)}</div>`:''}</div>`;}).join('')}</div>`).join(''):'<p class="muted">لا توجد نتائج مطابقة.</p>';}
+function renderGrid(){const q=norm(view.q);const g=$('#grid');const VM=vMembers();
+ if(!VM.length){g.innerHTML=`<div class="empty"><div style="font-size:44px">📇</div><p>ابدأ بإضافة نفسك ثم أبنائك وأسرهم، ولكل فرد ملفه الخاص بصورته ومستنداته.</p><button class="btn" data-act="addMember">＋ إضافة أول فرد</button></div>`;return;}
+ const groups={};VM.filter(x=>!q||norm([x.name,x.relation,x.family,(headOf(x)||{}).name].join(' ')).includes(q)).forEach(x=>{const hd=headOf(x);const k=hd?'h:'+hd.id:'f:'+(x.family||'أفراد آخرون');const lbl=hd?'👑 أسرة '+hd.name:(x.family||'أفراد آخرون');(groups[k]=groups[k]||{lbl,h:!!hd,list:[]}).list.push(x);});
+ Object.values(groups).forEach(G=>G.list.sort((a,b)=>(b.isHead?1:0)-(a.isHead?1:0)));
+ const keys=Object.keys(groups).sort((a,b)=>{const A=groups[a],B=groups[b];if(A.h!==B.h)return A.h?-1:1;if(A.lbl==='أفراد آخرون')return 1;if(B.lbl==='أفراد آخرون')return -1;return A.lbl.localeCompare(B.lbl,'ar');});
+ g.innerHTML=keys.length?keys.map(k=>`<div class="gtitle">${esc(groups[k].lbl)} <span class="muted small">(${groups[k].list.length})</span></div><div class="members">${groups[k].list.map(x=>{const n=docs.filter(d=>d.memberId===x.id&&['expired','soon'].includes(docStatus(d).k)).length;const nb=nextBday(x.birthDate);
+  return `<div class="mcard" data-act="openMember" data-id="${x.id}">${n?`<span class="dot badge b-expired" title="مستندات تحتاج تجديد">⚠ ${n}</span>`:''}${avatar(x)}<div class="nm">${esc(x.name)}</div><div class="small muted">${esc(x.relation||'')}</div>${x.isHead?'<div class="hbadge">رب الأسرة</div>':''}${nb&&nb.days<=7?`<div class="badge b-soon" style="margin-top:4px">🎂 ${bdayLabel(nb)}</div>`:''}</div>`;}).join('')}</div>`).join(''):'<p class="muted">لا توجد نتائج مطابقة.</p>';}
 
 function docCard(d,showMember){const s=docStatus(d);const T=dtype(d.type);const x=byId(d.memberId);
  return `<div class="card doc ${s.k}"><div class="row between" style="align-items:flex-start"><div><div class="dt">${T[2]} ${esc(d.title||T[1])}</div>${showMember&&x?`<a class="lnk" data-act="openMember" data-id="${x.id}">${esc(x.name)}</a>`:''}</div><span class="badge b-${s.k}">${s.label}</span></div>
  <div class="kv">${d.number?`<div><span>الرقم</span><b dir="ltr">${esc(d.number)}</b></div>`:''}${d.issueDate?`<div><span>تاريخ الإصدار</span><b>${fmtD(d.issueDate)}</b></div>`:''}${d.expiryDate?`<div><span>تاريخ الانتهاء</span><b>${fmtD(d.expiryDate)}</b></div>`:''}</div>
  ${d.notes?`<div class="muted small" style="margin-top:8px">${esc(d.notes)}</div>`:''}
  ${(d.files||[]).length?`<div class="thumbs">${d.files.map((f,i)=>(f.type||mimeOf(f.name)).startsWith('image/')?`<img class="thumb" src="${ourl(f.blob)}" data-act="viewDoc" data-id="${d.id}" data-i="${i}" title="${esc(f.name)}">`:`<div class="thumb" data-act="viewDoc" data-id="${d.id}" data-i="${i}" title="${esc(f.name)}">${KIND_IC[kindOf(f.name)]}<br>${esc((f.name.split('.').pop()||'').toUpperCase())}</div>`).join('')}</div>`:'<div class="small muted" style="margin-top:8px">لا توجد صورة مرفقة</div>'}
- <div class="row dacts"><button class="btn ghost sm" data-act="editDoc" data-id="${d.id}">✏️ تعديل</button><button class="btn ghost sm" data-act="saveDocToFolder" data-id="${d.id}">💾 نسخ إلى مجلده</button><button class="btn danger sm" data-act="delDoc" data-id="${d.id}">حذف</button></div></div>`;}
+ <div class="row dacts"><button class="btn sm wa" data-act="shareDoc" data-id="${d.id}">📤 إرسال واتساب</button><button class="btn ghost sm" data-act="editDoc" data-id="${d.id}">✏️ تعديل</button><button class="btn ghost sm" data-act="saveDocToFolder" data-id="${d.id}">💾 نسخ إلى مجلده</button><button class="btn danger sm" data-act="delDoc" data-id="${d.id}">حذف</button></div></div>`;}
 
-async function vMember(m){const x=byId(view.id);if(!x)return go('home');
+async function vMember(m){const x=byId(view.id);if(!x||!canSee(x))return go('home');const hd=headOf(x);
  const md=docs.filter(d=>d.memberId===x.id).sort((a,b)=>docStatus(a).n-docStatus(b).n);
  const tab=view.tab||'docs';const a=age(x.birthDate);const nb=nextBday(x.birthDate);
  m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>
- <div class="card profile">${avatar(x,'lg')}<div class="pinfo"><h2 style="font-size:24px;margin:0">${esc(x.name)}</h2><div class="muted">${esc([x.relation,x.family].filter(Boolean).join(' · '))}</div>
+ <div class="card profile">${avatar(x,'lg')}<div class="pinfo"><h2 style="font-size:24px;margin:0">${esc(x.name)}</h2><div class="muted">${esc([x.relation,x.family].filter(Boolean).join(' · '))}</div>${x.isHead?'<div class="hbadge">👑 رب الأسرة</div>':hd?`<div class="small">من <a class="lnk" data-act="openMember" data-id="${hd.id}">أسرة ${esc(hd.name)}</a></div>`:''}
  <div class="facts">${x.birthDate?`<span>🎂 ${fmtD(x.birthDate)}${a!==null?` — العمر ${a} سنة`:''}</span>`:''}${nb&&nb.days<=30?`<span class="badge b-soon">عيد ميلاده ${bdayLabel(nb)}</span>`:''}${x.phone?`<span>📞 <span dir="ltr">${esc(x.phone)}</span></span>`:''}</div>
  ${x.notes?`<div class="notes">${esc(x.notes).replace(/\n/g,'<br>')}</div>`:''}</div>
- <div class="pact"><button class="btn sm" data-act="editMember" data-id="${x.id}">✏️ تعديل البيانات</button><button class="btn danger sm" data-act="delMember" data-id="${x.id}">حذف من البرنامج</button></div></div>
+ <div class="pact"><button class="btn sm" data-act="editMember" data-id="${x.id}">✏️ تعديل البيانات</button>${isAdmin()?`<button class="btn danger sm" data-act="delMember" data-id="${x.id}">حذف من البرنامج</button>`:''}</div></div>
  <div class="tabs"><button class="${tab==='docs'?'active':''}" data-act="tab" data-t="docs">🪪 المستندات الرسمية (${md.length})</button><button class="${tab==='files'?'active':''}" data-act="tab" data-t="files">📂 صوره وملفاته في الجهاز</button></div><div id="tabBody"></div>`;
  const b=$('#tabBody');
  if(tab==='docs'){b.innerHTML=`<div class="row between" style="margin-bottom:12px"><span class="muted small">جواز السفر، البطاقة السكانية، رخصة السياقة، ملكية المركبة وغيرها — مع تنبيه قبل انتهاء الصلاحية.</span><button class="btn" data-act="addDoc" data-id="${x.id}">＋ إضافة مستند</button></div>${md.length?`<div class="docs">${md.map(d=>docCard(d)).join('')}</div>`:'<div class="card empty">لم تُضف مستندات لهذا الفرد بعد.</div>'}`;}
@@ -313,7 +346,7 @@ async function diskSearchRun(el,q){
  ${!out.length?'<div class="empty">لا توجد نتائج.</div>':''}`;
  observeThumbs(el);}
 
-function vAlerts(m){const all=docs.map(d=>({d,s:docStatus(d)}));
+function vAlerts(m){const all=vDocs().map(d=>({d,s:docStatus(d)}));
  const exp=all.filter(o=>o.s.k==='expired').sort((a,b)=>a.s.n-b.s.n),soon=all.filter(o=>o.s.k==='soon').sort((a,b)=>a.s.n-b.s.n);
  const bd=upcomingBdays(60);const tbl=all.filter(o=>o.d.expiryDate).sort((a,b)=>a.s.n-b.s.n);
  m.innerHTML=`<div class="card"><h2 class="red">⛔ مستندات منتهية (${exp.length})</h2>${exp.length?`<div class="docs">${exp.map(o=>docCard(o.d,true)).join('')}</div>`:'<p class="muted">لا يوجد — ممتاز.</p>'}</div>
@@ -322,15 +355,21 @@ function vAlerts(m){const all=docs.map(d=>({d,s:docStatus(d)}));
  <div class="card"><h2>📋 جدول صلاحية كل المستندات</h2>${tbl.length?`<div style="overflow:auto"><table><tr><th>الفرد</th><th>المستند</th><th>الرقم</th><th>تاريخ الانتهاء</th><th>الحالة</th></tr>${tbl.map(o=>{const x=byId(o.d.memberId);const T=dtype(o.d.type);return `<tr class="click" data-act="openMember" data-id="${x?x.id:''}"><td>${esc(x?x.name:'—')}</td><td>${T[2]} ${esc(o.d.title||T[1])}</td><td dir="ltr" style="text-align:right">${esc(o.d.number||'')}</td><td>${fmtD(o.d.expiryDate)}</td><td><span class="badge b-${o.s.k}">${o.s.label}</span></td></tr>`;}).join('')}</table></div>`:'<p class="muted">لا توجد مستندات بتاريخ انتهاء.</p>'}</div>`;}
 
 function vSearch(m){const q=norm(view.q);
- const ms=members.filter(x=>norm([x.name,x.relation,x.family,x.phone,x.notes].join(' ')).includes(q));
- const ds=docs.filter(d=>{const x=byId(d.memberId);const T=dtype(d.type);return norm([T[1],d.title,d.number,d.notes,x&&x.name].join(' ')).includes(q);});
+ const ms=vMembers().filter(x=>norm([x.name,x.relation,x.family,x.phone,x.notes].join(' ')).includes(q));
+ const ds=vDocs().filter(d=>{const x=byId(d.memberId);const T=dtype(d.type);return norm([T[1],d.title,d.number,d.notes,x&&x.name].join(' ')).includes(q);});
  m.innerHTML=`<h2>🔎 نتائج البحث عن «${esc(view.q)}»</h2>
  <div class="card"><h3>الأفراد (${ms.length})</h3>${ms.length?`<div class="members">${ms.map(x=>`<div class="mcard" data-act="openMember" data-id="${x.id}">${avatar(x)}<div class="nm">${esc(x.name)}</div><div class="small muted">${esc(x.relation||'')}</div></div>`).join('')}</div>`:'<p class="muted">لا يوجد.</p>'}</div>
  <div class="card"><h3>المستندات (${ds.length})</h3>${ds.length?`<div class="docs">${ds.map(d=>docCard(d,true)).join('')}</div>`:'<p class="muted">لا يوجد.</p>'}</div>
- ${root?`<div class="card"><p class="muted" style="margin:0">للبحث في أسماء الملفات والصور داخل الجهاز: <a class="lnk" data-act="searchDiskFor">ابحث عن «${esc(view.q)}» في مكتبة الملفات</a></p></div>`:''}`;}
+ ${root&&isAdmin()?`<div class="card"><p class="muted" style="margin:0">للبحث في أسماء الملفات والصور داخل الجهاز: <a class="lnk" data-act="searchDiskFor">ابحث عن «${esc(view.q)}» في مكتبة الملفات</a></p></div>`:''}`;}
 
-function vSettings(m){const bk=settings.lastBackup?new Date(settings.lastBackup).toLocaleString('ar-u-nu-latn'):'لم تُحفظ نسخة بعد';
- m.innerHTML=`<div class="card"><h2>🗂️ المجلد الرئيسي للأرشيف</h2><p class="muted small">المجلد في القرص الصلب الذي يضم مجلدات الأفراد وصور الهاتف المنقولة. البرنامج يقرأ منه، ولا يكتب فيه إلا بأمر صريح منك (إنشاء مجلد لفرد، أو نسخ مستند، أو حفظ نسخة احتياطية) ولا يحذف منه شيئاً.</p>
+function vSettings(m){const bk=settings.lastBackup?new Date(settings.lastBackup).toLocaleString('ar-u-nu-latn'):'لم تُحفظ نسخة بعد';const hs=heads();
+ m.innerHTML=`<div class="card"><h2>🛡️ المدير وخصوصية الأسر</h2>
+ <p class="muted small">المدير يحدد «رب الأسرة» لكل أسرة من نافذة تعديل بيانات الفرد، ويربط بقية الأفراد بأسرهم. بعد تحديد رمز المدير يُقفل البرنامج عند فتحه: كل أسرة تدخل برمزها فترى أفرادها ومستنداتها فقط، والمدير يرى الجميع.</p>
+ <div class="row"><b>${settings.adminPin?'✓ رمز المدير مفعّل':'لا يوجد رمز مدير — البرنامج مفتوح بالكامل'}</b><button class="btn" data-act="setAdminPin">${settings.adminPin?'تغيير رمز المدير':'تحديد رمز المدير'}</button>${settings.adminPin?'<button class="btn danger" data-act="rmAdminPin">إلغاء الرمز</button>':''}</div>
+ <h3 style="margin-top:16px">أرباب الأسر (${hs.length})</h3>
+ ${hs.length?`<div style="overflow:auto"><table><tr><th>رب الأسرة</th><th>عدد أفراد الأسرة</th><th>رمز الأسرة</th><th></th></tr>${hs.map(h=>`<tr><td><a class="lnk" data-act="openMember" data-id="${h.id}">${esc(h.name)}</a></td><td>${members.filter(x=>headOf(x)===h).length}</td><td>${h.pin?'<span class="badge b-ok">محدَّد</span>':'<span class="badge b-none">غير محدَّد</span>'}</td><td><button class="btn ghost sm" data-act="setFamPin" data-id="${h.id}">${h.pin?'تغيير الرمز':'تحديد الرمز'}</button></td></tr>`).join('')}</table></div>`:'<p class="muted small">لا يوجد بعد. افتح بطاقة أي فرد ← «تعديل البيانات» ← علّم «هذا الفرد رب أسرة».</p>'}
+ <p class="small amber" style="margin-bottom:0">⚠️ احفظ رمز المدير في مكان آمن؛ إن نُسي فلا يمكن فتح الأرشيف كاملاً من البرنامج. والرموز تمنع فتح الأقسام من داخل البرنامج، لكنها ليست تشفيراً للبيانات المحفوظة في متصفح هذا الجهاز.</p></div>
+ <div class="card"><h2>🗂️ المجلد الرئيسي للأرشيف</h2><p class="muted small">المجلد في القرص الصلب الذي يضم مجلدات الأفراد وصور الهاتف المنقولة. البرنامج يقرأ منه، ولا يكتب فيه إلا بأمر صريح منك (إنشاء مجلد لفرد، أو نسخ مستند، أو حفظ نسخة احتياطية) ولا يحذف منه شيئاً.</p>
  <div class="row"><b>${root?'📂 '+esc(root.name):'لم يُحدَّد بعد'}</b>${fsOK?`<button class="btn ${root?'ghost':''}" data-act="setRoot">${root?'تغيير المجلد':'اختيار المجلد الرئيسي'}</button>`:'<span class="red small">يتطلب Chrome أو Edge</span>'}</div></div>
  <div class="card"><h2>🔔 التنبيهات</h2><div class="row"><label class="f">المدة الافتراضية للتنبيه قبل انتهاء المستند (بالأيام)<input type="number" id="setRemind" min="1" value="${esc(settings.remindDays)}" style="width:140px"></label><button class="btn" data-act="saveSettings" style="align-self:flex-end">حفظ</button></div><p class="muted small">يمكن تغيير المدة لكل مستند على حدة من نافذة تعديله (مثلاً 180 يوماً لجواز السفر).</p></div>
  <div class="card"><h2>💾 النسخ الاحتياطي</h2><p class="muted small">بيانات البرنامج (الأفراد، الصور الشخصية، المستندات ومرفقاتها) محفوظة داخل المتصفح على هذا الجهاز. إذا مُسحت بيانات المتصفح أو تغيّر الجهاز فلن تُستعاد إلا من نسخة احتياطية — لذا احفظ نسخة بشكل دوري.</p>
@@ -346,11 +385,13 @@ function modal(title,body,onSave,saveLabel='حفظ'){const bg=document.createEle
 
 async function resizeImg(file,max=640){try{const bmp=await createImageBitmap(file);const s=Math.min(1,max/Math.max(bmp.width,bmp.height));const c=document.createElement('canvas');c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return await new Promise(r=>c.toBlob(r,'image/jpeg',.9));}catch(_){return file;}}
 
-function memberForm(x){const rels=uniq(['أنا','الزوجة','ابن','ابنة','زوجة ابن','زوج ابنة','حفيد','حفيدة','أخ','أخت',...members.map(m=>m.relation)]);const fams=uniq(members.map(m=>m.family));
+function memberForm(x){const VM=vMembers();const rels=uniq(['أنا','الزوجة','ابن','ابنة','زوجة ابن','زوج ابنة','حفيد','حفيدة','أخ','أخت',...VM.map(m=>m.relation)]);const fams=uniq(VM.map(m=>m.family));
  return `<div class="form"><div class="full row"><div id="phPrev">${x.photo?`<img class="av" style="margin:0" src="${ourl(x.photo)}">`:'<div class="av" style="margin:0">👤</div>'}</div><label class="f" style="flex:1">الصورة الشخصية (تظهر على بطاقته)<input type="file" name="photo" accept="image/*"></label>${x.photo?'<label class="small"><input type="checkbox" name="rmPhoto"> إزالة الصورة</label>':''}</div>
  <label class="f full">الاسم الكامل *<input name="name" required value="${esc(x.name)}"></label>
+ ${isAdmin()?`<div class="full" style="background:#faf7f0;border:1px solid var(--line);border-radius:10px;padding:10px 12px"><label class="chk"><input type="checkbox" name="isHead" ${x.isHead?'checked':''}> 👑 هذا الفرد رب أسرة (تُجمع تحت اسمه أسرته ومستنداتها)</label>
+ <label class="f" id="headWrap" style="margin-top:8px" ${x.isHead?'hidden':''}>يتبع أسرة<select name="headId"><option value="">— لا يتبع أسرة —</option>${heads().filter(h=>h.id!==x.id).map(h=>`<option value="${h.id}" ${h.id===x.headId?'selected':''}>أسرة ${esc(h.name)}</option>`).join('')}</select></label></div>`:''}
  <label class="f">صلة القرابة<input name="relation" list="relL" value="${esc(x.relation)}" placeholder="ابن، زوجة ابن، حفيد…"></label>
- <label class="f">الأسرة / الفرع (لتجميع البطاقات)<input name="family" list="famL" value="${esc(x.family)}" placeholder="مثال: أسرة ياسر"></label>
+ <label class="f">الفرع (اختياري، إن لم يُحدَّد رب أسرة)<input name="family" list="famL" value="${esc(x.family)}" placeholder="مثال: أسرة ياسر"></label>
  <label class="f">تاريخ الميلاد<input type="date" name="birthDate" value="${esc(x.birthDate)}"></label>
  <label class="f">رقم الهاتف<input name="phone" dir="ltr" value="${esc(x.phone)}"></label>
  <label class="f full">ملاحظات شخصية<textarea name="notes" placeholder="ملاحظات تودّ الرجوع إليها عن هذا الفرد…">${esc(x.notes)}</textarea></label>
@@ -359,7 +400,13 @@ function memberForm(x){const rels=uniq(['أنا','الزوجة','ابن','ابن
 function openMemberForm(x={}){const f=modal(x.id?'تعديل بيانات '+esc(x.name):'إضافة فرد جديد',memberForm(x),async f=>{const fd=new FormData(f);const name=(fd.get('name')||'').trim();if(!name)return false;
   const o={...x,id:x.id||uid(),name,relation:fd.get('relation').trim(),family:fd.get('family').trim(),birthDate:fd.get('birthDate'),phone:fd.get('phone').trim(),notes:fd.get('notes').trim(),created:x.created||Date.now()};
   const ph=fd.get('photo');if(ph&&ph.size)o.photo=await resizeImg(ph);else if(fd.get('rmPhoto'))o.photo=null;
+  if(isAdmin()){o.isHead=!!fd.get('isHead');o.headId=o.isHead?null:(fd.get('headId')||null);}
+  else if(!x.id){o.isHead=false;o.headId=session;}
+  const deps=x.isHead&&!o.isHead?members.filter(m=>m.headId===x.id):[];
+  if(deps.length&&!confirm(`إلغاء «رب الأسرة» عن ${x.name} سيفكّ ارتباط ${deps.length} فرد بأسرته. هل تريد المتابعة؟`))return false;
+  for(const m of deps)await put('members',{...m,headId:null});
   await put('members',o);await load();toast('تم الحفظ ✓');if(!x.id)go('member',{id:o.id});else render();});
+ const ih=f.querySelector('[name=isHead]');if(ih)ih.onchange=()=>{f.querySelector('#headWrap').hidden=ih.checked;};
  f.querySelector('[name=photo]').onchange=e=>{const fl=e.target.files[0];if(fl)$('#phPrev').innerHTML=`<img class="av" style="margin:0" src="${ourl(fl)}">`;};}
 
 function docForm(d){const files=d.files||[];return `<div class="form">
@@ -417,8 +464,8 @@ const ACT={
  addMember:()=>openMemberForm({}),
  editMember:d=>openMemberForm(byId(d.id)),
  delMember:async d=>{const x=byId(d.id);const n=docs.filter(o=>o.memberId===x.id).length;
-  if(!confirm(`هل تريد حذف «${x.name}» من البرنامج؟\nسيُحذف معه ${n} مستند محفوظ داخل البرنامج.\n\nملاحظة: لن يُحذف أي ملف أو مجلد من جهازك.`))return;
-  for(const o of docs.filter(o=>o.memberId===x.id))await del('docs',o.id);await del('members',x.id);await del('kv','h:'+x.id);await load();toast('تم الحذف من البرنامج');go('home');},
+  if(!confirm(`هل تريد حذف «${x.name}» من البرنامج؟\nسيُحذف معه ${n} مستند محفوظ داخل البرنامج.${x.isHead?'\nوهو رب أسرة: سيُفكّ ارتباط أفراد أسرته به (ولن يُحذفوا).':''}\n\nملاحظة: لن يُحذف أي ملف أو مجلد من جهازك.`))return;
+  for(const o of docs.filter(o=>o.memberId===x.id))await del('docs',o.id);for(const o of members.filter(o=>o.headId===x.id))await put('members',{...o,headId:null});await del('members',x.id);await del('kv','h:'+x.id);await load();toast('تم الحذف من البرنامج');go('home');},
  addDoc:d=>openDocForm({memberId:d.id}),
  editDoc:d=>openDocForm(docs.find(o=>o.id===d.id)),
  delDoc:async d=>{const o=docs.find(x=>x.id===d.id);if(!confirm(`حذف مستند «${o.title||dtype(o.type)[1]}» من البرنامج؟`))return;await del('docs',o.id);await load();render();toast('تم الحذف');},
@@ -452,8 +499,25 @@ const ACT={
  saveSettings:async()=>{settings.remindDays=Math.max(1,+$('#setRemind').value||60);await put('kv',settings,'settings');render();toast('تم الحفظ ✓');},
  exportDl:async()=>{toast('جارٍ تجهيز النسخة…');const b=await buildBackup();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=bkName();a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);await markBackup();render();toast('تم تنزيل النسخة الاحتياطية ✓');},
  exportRoot:async()=>{if(!(await needWrite(root)))return toast('لم يُمنح إذن الكتابة',true);toast('جارٍ تجهيز النسخة…');const b=await buildBackup();const dir=await root.getDirectoryHandle('النسخ الاحتياطية للأرشيف',{create:true});const n=await writeBlob(dir,bkName(),b);await markBackup();render();toast(`حُفظت النسخة: ${root.name} / النسخ الاحتياطية للأرشيف / ${n} ✓`);},
- importBk:()=>$('#importInp').click()
+ importBk:()=>$('#importInp').click(),
+ shareDoc:async d=>{const o=docs.find(x=>x.id===d.id);const x=o&&byId(o.memberId);if(!o||!canSee(x))return;const T=o.title||dtype(o.type)[1];
+  const list=o.files||[];if(!list.length)return toast('لا توجد صورة مرفقة بهذا المستند لإرسالها',true);
+  const files=list.map((f,i)=>{const ext=f.name.includes('.')?f.name.slice(f.name.lastIndexOf('.')):'';return new File([f.blob],safeName(`${T} - ${x.name}${list.length>1?' - '+(i+1):''}`)+ext,{type:f.type||f.blob.type||mimeOf(f.name)});});
+  const text=`${T} — ${x.name}${o.expiryDate?'\nتاريخ الانتهاء: '+fmtD(o.expiryDate):''}`;
+  if(navigator.canShare&&navigator.canShare({files})){try{await navigator.share({files,text,title:T});}catch(e){if(e.name!=='AbortError')toast('تعذّر الإرسال: '+e.message,true);}return;}
+  for(const f of files){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),8000);}
+  window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');
+  toast('نُزّلت نسخة من المستند في «التنزيلات». أرفقها في محادثة واتساب بزر المشبك 📎');},
+ lock:()=>{session=null;closeViewer();go('home');},
+ unlockAdmin:()=>pinPrompt('🛡️ دخول المدير',async p=>{if((await sha(p))!==settings.adminPin)return false;session='admin';go('home');return true;}),
+ unlockFam:d=>{const h=byId(d.id);if(!h)return;if(!h.pin)return toast('لم يحدِّد المدير رمزاً لهذه الأسرة بعد',true);
+  pinPrompt('دخول أسرة '+esc(h.name),async p=>{if((await sha(p))!==h.pin)return false;session=h.id;go('home');return true;});},
+ setAdminPin:()=>newPinModal(settings.adminPin?'تغيير رمز المدير':'تحديد رمز المدير','سيُطلب هذا الرمز لفتح الأرشيف كاملاً. احفظه في مكان آمن.',async p=>{settings.adminPin=await sha(p);await put('kv',settings,'settings');session='admin';render();toast('تم حفظ رمز المدير ✓');}),
+ rmAdminPin:async()=>{if(!confirm('إلغاء رمز المدير؟ سيصبح البرنامج مفتوحاً بالكامل لكل من يستخدم هذا الجهاز.'))return;settings.adminPin=null;await put('kv',settings,'settings');session=null;render();toast('أُلغي رمز المدير');},
+ setFamPin:d=>{const h=byId(d.id);newPinModal('رمز أسرة '+esc(h.name),'تدخل به هذه الأسرة فترى أفرادها ومستنداتها فقط.',async p=>{await put('members',{...h,pin:await sha(p)});await load();render();toast('تم حفظ رمز الأسرة ✓');});}
 };
+function pinPrompt(title,check){modal(title,`<label class="f">الرمز<input type="password" name="pin" autocomplete="off" required></label><p class="small red" data-err hidden>الرمز غير صحيح</p>`,async f=>{const ok=await check(new FormData(f).get('pin'));if(!ok){f.querySelector('[data-err]').hidden=false;return false;}},'دخول');}
+function newPinModal(title,note,onPin){modal(title,`<p class="muted small">${note}</p><div class="form"><label class="f">الرمز الجديد (4 خانات أو أكثر)<input type="password" name="p1" autocomplete="new-password" minlength="4" required></label><label class="f">تأكيد الرمز<input type="password" name="p2" autocomplete="new-password" required></label></div><p class="small red" data-err hidden>الرمزان غير متطابقين</p>`,async f=>{const fd=new FormData(f);if(fd.get('p1')!==fd.get('p2')){f.querySelector('[data-err]').hidden=false;return false;}await onPin(fd.get('p1'));});}
 document.addEventListener('click',async e=>{const t=e.target.closest('[data-act]');if(!t||t.closest('.modal'))return;e.preventDefault();const fn=ACT[t.dataset.act];if(!fn)return;try{await fn(t.dataset,t,e);}catch(err){console.error(err);toast('حدث خطأ: '+err.message,true);}});
 document.addEventListener('change',e=>{const t=e.target.closest('[data-chg]');if(t&&t.dataset.chg==='flt'){view.flt=t.value;view.limit=300;render();}});
 $('#gq').addEventListener('keydown',e=>{if(e.key==='Enter')ACT.gsearch();});
