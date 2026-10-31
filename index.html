@@ -458,7 +458,7 @@ function vSettings(m){const bk=settings.lastBackup?new Date(settings.lastBackup)
  <div class="card"><h2><i class="ico i-stack"></i> المجلد الرئيسي للأرشيف</h2><p class="muted small">المجلد في القرص الصلب الذي يضم مجلدات الأفراد وصور الهاتف المنقولة. البرنامج يقرأ منه، ولا يكتب فيه إلا بأمر صريح منك (إنشاء مجلد لفرد، أو نسخ مستند، أو حفظ نسخة احتياطية) ولا يحذف منه شيئاً.</p>
  <div class="row"><b>${root?'<i class="ico i-folder"></i> '+esc(root.name):'لم يُحدَّد بعد'}</b>${fsOK?`<button class="btn ${root?'ghost':''}" data-act="setRoot">${root?'تغيير المجلد':'اختيار المجلد الرئيسي'}</button>`:'<span class="red small">يتطلب Chrome أو Edge</span>'}</div></div>
  <div class="card"><h2><i class="ico i-bell"></i> التنبيهات</h2><div class="row"><label class="f">المدة الافتراضية للتنبيه قبل انتهاء المستند (بالأيام)<input type="number" id="setRemind" min="1" value="${esc(settings.remindDays)}" style="width:140px"></label><button class="btn" data-act="saveSettings" style="align-self:flex-end">حفظ</button></div><p class="muted small">يمكن تغيير المدة لكل مستند على حدة من نافذة تعديله (مثلاً 180 يوماً لجواز السفر).</p></div>
- ${ghCard()}<div class="card"><h2><i class="ico i-users"></i> استيراد الأسر من نص</h2><p class="muted small">اسم الأسرة بين قوسين، وبعده كل فرد في سطر مع صلة القرابة بعد الشرطة. الأفراد الموجودين بنفس الاسم ما يتغيّرون.</p><textarea id="famText" rows="8" style="width:100%"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-act="importFamilies">استيراد</button></div></div>
+ <div class="card"><h2><i class="ico i-users"></i> استيراد الأسر من نص</h2><p class="muted small">اسم الأسرة بين قوسين، وبعده كل فرد في سطر مع صلة القرابة بعد الشرطة. الأفراد الموجودين بنفس الاسم ما يتغيّرون.</p><textarea id="famText" rows="8" style="width:100%"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-act="importFamilies">استيراد</button></div></div>
  <div class="card"><h2><i class="ico i-save"></i> النسخ الاحتياطي</h2><p class="muted small">بيانات البرنامج (الأفراد، الصور الشخصية، المستندات ومرفقاتها) محفوظة داخل المتصفح على هذا الجهاز. إذا مُسحت بيانات المتصفح أو تغيّر الجهاز فلن تُستعاد إلا من نسخة احتياطية — لذا احفظ نسخة بشكل دوري.</p>
  <p>آخر نسخة: <b>${bk}</b></p><div class="row"><button class="btn" data-act="exportDl">تنزيل نسخة احتياطية</button>${root?'<button class="btn gold" data-act="exportRoot">حفظ نسخة داخل المجلد الرئيسي</button>':''}<button class="btn ghost" data-act="importBk">استعادة من نسخة احتياطية</button></div></div>`;}
 
@@ -576,15 +576,16 @@ async function clearData(){await P(store('members','readwrite').clear());await P
 
 async function doLogin(user,pass){const uk=await userKey(user);
  const pa=pub&&pub.accounts[uk];
- if(pa){let kek,keys={};try{kek=await kekFrom(pass,pa.salt,pa.it);for(const[bid,w]of Object.entries(pa.keys||{}))keys[bid]=b64e(await decB(kek,w));}catch(e){keys=null;}
+ if(pa){let kek,keys={},AK=null;try{kek=await kekFrom(pass,pa.salt,pa.it);let kk=kek;if(pa.ak){AK=b64e(await decB(kek,pa.ak));kk=await dekKey(AK);}for(const[bid,w]of Object.entries(pa.keys||{}))keys[bid]=b64e(await decB(kk,w));}catch(e){keys=null;}
   if(keys){
    if(pa.role==='admin'){
+    if(AK){await P(store('kv','readwrite').put(AK,'ak'));if(pa.tok){try{pubToken.set(TD(await decB(await dekKey(AK),pa.tok)));}catch(e){}}}
     const keep=isDirty()&&members.length&&!confirm('يوجد على هذا الجهاز تعديلات لم تُنشر على الموقع بعد.\n\nهل تريد استبدالها بالنسخة المنشورة؟\n(موافق = استبدال، إلغاء = الإبقاء على بيانات هذا الجهاز)');
     if(!keep){toast('جارٍ فك تشفير البيانات…');await clearData();let st=null;
      for(const[bid,b]of Object.entries(pub.bundles)){if(!keys[bid])continue;const j=await decodeBundle(keys[bid],b);const w=fromWire(j);
       for(const x of w.members)await P(store('members','readwrite').put(x));for(const d of w.docs)await P(store('docs','readwrite').put(d));if(bid==='_')st=j.settings;}
      const cur=(await kvGet('settings'))||{};await P(store('kv','readwrite').put({...cur,...(st||{})},'settings'));
-     const acc={};for(const[k,v]of Object.entries(pub.accounts)){const{keys:_,...rest}=v;acc[k]=v.role==='admin'?rest:v;}
+     const acc={};for(const[k,v]of Object.entries(pub.accounts)){const{keys:_,tok:_t,...rest}=v;acc[k]=v.role==='admin'?rest:v;}
      await putAccounts(acc);await P(store('kv','readwrite').put(keys,'deks'));
      setDirty(false);try{localStorage.setItem('arch-pubdate',pub.date);}catch(e){}}
     setSession({role:'admin',user:String(user).trim()});await load();return true;}
@@ -625,7 +626,7 @@ async function setAdminAccount(u,p){const acc=await getAccounts();const uk=await
  if(acc[uk]&&acc[uk].role!=='admin')throw new Error('اسم المستخدم مستخدم لأسرة أخرى');
  for(const[k,v]of Object.entries(acc))if(v.role==='admin')delete acc[k];
  const salt=b64e(rnd(16)),kek=await kekFrom(p,salt,PBKDF_IT);
- acc[uk]={role:'admin',salt,it:PBKDF_IT,ver:await encB(kek,TE('ok'))};
+ acc[uk]={role:'admin',salt,it:PBKDF_IT,ver:await encB(kek,TE('ok'))};const AK0=await kvGet('ak');if(AK0)acc[uk].ak=await encB(kek,b64d(AK0));
  await putAccounts(acc);settings.accountNames={...(settings.accountNames||{}),admin:u};await put('kv',settings,'settings');setDirty(true);}
 async function setFamAccount(h,u,p){const acc=await getAccounts();const uk=await userKey(u);
  if(acc[uk]&&!(acc[uk].role==='family'&&acc[uk].headId===h.id))throw new Error('اسم المستخدم مستخدم مسبقاً');
@@ -641,8 +642,11 @@ async function rmFamAccount(h){const acc=await getAccounts();for(const[k,v]of Ob
  await putAccounts(acc);const n={...(settings.accountNames||{})};delete n[h.id];settings.accountNames=n;await put('kv',settings,'settings');setDirty(true);}
 
 async function buildPub(adminPass){const acc=await getAccounts();const ae=Object.entries(acc).find(([,v])=>v.role==='admin');
- if(!ae)throw new Error('لا يوجد حساب مدير');const kek=await kekFrom(adminPass,ae[1].salt,ae[1].it);
- try{await decB(kek,ae[1].ver);}catch(e){throw new Error('كلمة سر المدير غير صحيحة');}
+ if(!ae)throw new Error('لا يوجد حساب مدير');let AK=await kvGet('ak');
+ if(!AK||!ae[1].ak){if(!adminPass){const e=new Error('NEED_PASS');e.needPass=true;throw e;}
+  const kek=await kekFrom(adminPass,ae[1].salt,ae[1].it);try{await decB(kek,ae[1].ver);}catch(e){throw new Error('كلمة سر المدير غير صحيحة');}
+  if(!AK)AK=b64e(rnd(32));ae[1].ak=await encB(kek,b64d(AK));await P(store('kv','readwrite').put(AK,'ak'));await putAccounts(acc);}
+ const kek=await dekKey(AK);
  const deks=await getDeks();const hids=new Set(heads().map(h=>h.id));const bids=['_',...hids];
  const groups={};bids.forEach(b=>groups[b]={members:[],docs:[]});
  for(const x of members){const bid=bundleOf(x);groups[bid].members.push({...x,pin:undefined,photo:x.photo?await b2d(x.photo):null});}
@@ -653,11 +657,11 @@ async function buildPub(adminPass){const acc=await getAccounts();const ae=Object
   let u=TE(JSON.stringify({...groups[bid],settings:st}));const z=await zip(u);
   const b=await encB(await dekKey(raw),z||u);if(z)b.z=1;bundles[bid]=b;adminKeys[bid]=await encB(kek,b64d(raw));}
  await P(store('kv','readwrite').put(deks,'deks'));
- const accounts={};for(const[k,v]of Object.entries(acc)){if(v.role==='admin')accounts[k]={...v,keys:adminKeys};else if(hids.has(v.headId)){const{more:_m,...e}=v;
+ const accounts={};for(const[k,v]of Object.entries(acc)){if(v.role==='admin'){accounts[k]={...v,keys:adminKeys};const tk=pubToken.get();if(tk)accounts[k].tok=await encB(kek,TE(tk));}else if(hids.has(v.headId)){const{more:_m,...e}=v;
   if(v.scope==='all'){const hk=await dekKey(deks[v.headId]);e.more={};for(const bid of bids)if(bid!==v.headId)e.more[bid]=await encB(hk,b64d(deks[bid]));}
   accounts[k]=e;}}
  return {app:'abu-yaser-archive',v:2,date:new Date().toISOString(),accounts,bundles};}
-async function publishNow(adminPass){const token=pubToken.get();if(!token)throw new Error('اكتب رمز GitHub أولاً');
+async function publishNow(adminPass){const token=pubToken.get();if(!token){const e=new Error('NEED_TOKEN');e.needToken=true;throw e;}
  toast('جارٍ تشفير البيانات…');const file=await buildPub(adminPass);const text=JSON.stringify(file);
  const mb=text.length/1048576;if(mb>90)throw new Error(`حجم البيانات كبير جداً (${mb.toFixed(0)} م.ب) — صغّر حجم الصور المرفقة`);
  const url=`https://api.github.com/repos/${PUB_REPO}/contents/${PUB_FILE}`;const H={Authorization:'Bearer '+token,'X-GitHub-Api-Version':'2022-11-28'};
@@ -677,10 +681,7 @@ function accountsCard(){const acc=ACC;const hasAdmin=hasAdminAcc();const names=s
  ${hs.length?`<div style="overflow:auto"><table><tr><th>رب الأسرة</th><th>الأفراد</th><th>اسم المستخدم</th><th>الصلاحية</th><th></th></tr>${hs.map(h=>{const u=famUser(h);return `<tr><td><a class="lnk" data-act="openMember" data-id="${h.id}">${esc(h.name)}</a></td><td>${members.filter(x=>headOf(x)===h).length}</td><td>${u?'<b dir="ltr">'+esc(u)+'</b>':'<span class="badge b-none">بدون حساب</span>'}</td><td>${u?`<select class="inp" data-chg="scope" data-id="${h.id}"><option value="family">أسرته فقط</option><option value="all" ${famAcc(h).scope==='all'?'selected':''}>كل البيانات</option></select>`:'—'}</td><td class="row"><button class="btn ghost sm" data-act="setFamAcc" data-id="${h.id}">${u?'تغيير':'إنشاء حساب'}</button>${u?`<button class="btn danger sm" data-act="rmFamAcc" data-id="${h.id}">حذف</button>`:''}</td></tr>`;}).join('')}</table></div>`:'<p class="muted small">لا يوجد بعد. افتح بطاقة أي فرد ← «تعديل البيانات» ← علّم «هذا الفرد رب أسرة».</p>'}
  <h3 style="margin-top:16px">النشر</h3>
  <p class="small">آخر نشر: <b>${pd?new Date(pd).toLocaleString('ar-u-nu-latn'):'لم يُنشر بعد'}</b> ${dirty?'<span class="badge b-soon">توجد تعديلات لم تُنشر</span>':'<span class="badge b-ok">الموقع محدّث</span>'}</p>
- ${pubToken.get()?`<div class="row"><button class="btn gold" data-act="publish"><i class="ico i-send"></i> نشر التحديثات على الموقع</button><button class="btn ghost sm" data-act="forgetPubToken">نسيان رمز GitHub</button></div>`
- :`<div class="form"><label class="f full">رمز GitHub (Token) بصلاحية الكتابة على <span dir="ltr">${PUB_REPO}</span><input id="pubTok" type="password" dir="ltr" autocomplete="off"></label></div><div class="row"><button class="btn" data-act="savePubToken">حفظ الرمز</button></div>`}
- <div class="row" style="margin-top:10px"><button class="btn ghost" data-act="downloadPub"><i class="ico i-download"></i> بدون رمز: تنزيل ملف البيانات المشفّر</button></div>
- <p class="small muted">بدون رمز: نزّل الملف (اسمه <b dir="ltr">${PUB_FILE}</b>)، ثم افتح <a href="https://github.com/${PUB_REPO}/upload/main" target="_blank" rel="noopener" dir="ltr">github.com/${PUB_REPO}/upload/main</a> واسحب الملف إلى الصفحة واضغط <b>Commit changes</b>. الملف مشفّر، فلا خطر من رفعه.</p>
+ <div class="row"><button class="btn gold" data-act="publish"><i class="ico i-send"></i> نشر التحديثات على الموقع</button></div>
  <p class="small muted" style="margin-bottom:0">بعد النشر يحتاج الموقع دقيقة إلى دقيقتين حتى تظهر التحديثات للجميع. أي تعديل أو حساب جديد لا يظهر للآخرين إلا بعد الضغط على «نشر».</p></div>`;}
 const WRITE_ACTS=new Set(['addMember','addMemberIn','editMember','delMember','addDoc','editDoc','delDoc','saveDocToFolder','linkFolder','unlinkFolder','createFolder','famMove','setRoot','importFamilies','saveSettings','exportDl','exportRoot','importBk','ghSave','ghPushNow','ghPullNow','ghForget','setAdminAcc','setFamAcc','rmFamAcc','publish','downloadPub','savePubToken','forgetPubToken']);
 
@@ -808,7 +809,8 @@ backFam:d=>go('family',{key:d.key}),
  downloadPub:()=>modal('تنزيل ملف البيانات المشفّر',`<p class="muted small">أدخل كلمة سر المدير لتشفير البيانات وتنزيل الملف.</p><label class="f">كلمة سر المدير<input type="password" name="p" autocomplete="current-password" required></label><p class="small red" data-err hidden></p>`,async f=>{const e=f.querySelector('[data-err]');e.hidden=true;let file;try{toast('جارٍ تشفير البيانات…');file=await buildPub(new FormData(f).get('p'));}catch(x){e.textContent=x.message;e.hidden=false;return false;}
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(file)],{type:'application/json'}));a.download=PUB_FILE;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),8000);
   toast('تم تنزيل الملف ✓ — ارفعه الآن إلى GitHub');window.open(`https://github.com/${PUB_REPO}/upload/main`,'_blank');},'تنزيل'),
- publish:()=>modal('نشر التحديثات على الموقع',`<p class="muted small">للتأكيد، أدخل كلمة سر المدير. ستُشفَّر البيانات وتُرفع إلى الموقع.</p><label class="f">كلمة سر المدير<input type="password" name="p" autocomplete="current-password" required></label><p class="small red" data-err hidden></p>`,async f=>{const e=f.querySelector('[data-err]');e.hidden=true;try{await publishNow(new FormData(f).get('p'));}catch(x){e.textContent=x.message;e.hidden=false;return false;}render();toast('تم النشر ✓ — تظهر التحديثات للجميع خلال دقيقة أو دقيقتين');},'نشر'),
+ publish:async()=>{const ask=(needPass,needTok)=>modal('نشر التحديثات على الموقع',`<p class="muted small">مطلوب مرة واحدة فقط على هذا الجهاز.</p>${needPass?'<label class="f">كلمة سر المدير<input type="password" name="p" autocomplete="current-password" required></label>':''}${needTok?'<label class="f">رمز النشر<input type="password" name="t" dir="ltr" autocomplete="off" required></label>':''}<p class="small red" data-err hidden></p>`,async f=>{const fd=new FormData(f),e=f.querySelector('[data-err]');e.hidden=true;if(needTok)pubToken.set(fd.get('t').trim());try{await publishNow(needPass?fd.get('p'):undefined);}catch(x){if(x.needToken||x.needPass){e.textContent='أكمل الحقول';e.hidden=false;return false;}if(needTok&&/الرمز|رمز/.test(x.message))pubToken.set(null);e.textContent=x.message;e.hidden=false;return false;}render();toast('تم النشر ✓ — تظهر التحديثات للجميع خلال دقيقة أو دقيقتين');},'نشر');
+  try{await publishNow();render();toast('تم النشر ✓ — تظهر التحديثات للجميع خلال دقيقة أو دقيقتين');}catch(x){if(x.needToken)return ask(!(await kvGet('ak')),true);if(x.needPass)return ask(true,false);throw x;}},
  unlockAdmin:()=>pinPrompt('<i class="ico i-shield"></i> دخول المدير',async p=>{if((await sha(p))!==settings.adminPin)return false;session='admin';go('home');return true;}),
  unlockFam:d=>{const h=byId(d.id);if(!h)return;if(!h.pin)return toast('لم يحدِّد المدير رمزاً لهذه الأسرة بعد',true);
   pinPrompt('دخول أسرة '+esc(h.name),async p=>{if((await sha(p))!==h.pin)return false;session=h.id;go('home');return true;});},
