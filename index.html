@@ -199,7 +199,11 @@ footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 3
 [data-theme="dark"] .b-none{background:#24322f;color:var(--muted)}
 [data-theme="dark"] .card:hover,[data-theme="dark"] .stat:hover{border-color:#3cc2ac}.i-moon{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'/%3E%3C/svg%3E")}
 .i-sun{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/%3E%3C/svg%3E")}
-</style>
+.banners{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:14px}
+.banners:empty{display:none}
+.banners .banner{aspect-ratio:1/1;margin:0;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:8px;padding:14px;border-radius:14px;font-size:calc(13px * var(--fs,1));line-height:1.5;overflow:hidden}
+.banners .banner b{display:block}
+.banners .banner .btn{margin-top:auto}</style>
 </head>
 <body>
 <header class="top">
@@ -317,11 +321,11 @@ function vLock(m){const hs=heads();
 function vHome(m){const al=alertsList();const bd=upcomingBdays(30);
  const exp=al.filter(o=>o.s.k==='expired').length,soon=al.length-exp;const VM=vMembers(),VD=vDocs();
  const daysSinceBk=settings.lastBackup?Math.round((Date.now()-settings.lastBackup)/864e5):null;
- let h='';
+ let h='<div class="banners">';
  if(al.length)h+=`<div class="banner r"><i class="ico i-alert"></i> <b>لديك ${al.length} مستند ${exp?`(${exp} منتهٍ)`:''} يحتاج إلى تجديد قريباً.</b><button class="btn sm danger" data-act="nav" data-v="alerts">عرض التنبيهات</button></div>`;
  if(isAdmin()&&!settings.adminPin&&heads().length)h+=`<div class="banner g"><i class="ico i-shield"></i> حدّدت أرباب أسر، لكن الخصوصية غير مفعّلة بعد. حدّد «رمز المدير» من الإعدادات ليُطلب رمز كل أسرة عند الدخول.<button class="btn sm gold" data-act="nav" data-v="settings">الإعدادات</button></div>`;
  if(isAdmin()&&members.length&&(daysSinceBk===null||daysSinceBk>30))h+=`<div class="banner g"><i class="ico i-save"></i> ${daysSinceBk===null?'لم تُحفظ أي نسخة احتياطية بعد.':'مضى '+daysTxt(daysSinceBk)+' على آخر نسخة احتياطية.'} يُنصح بحفظ نسخة احتياطية بشكل دوري.<button class="btn sm gold" data-act="nav" data-v="settings">حفظ نسخة الآن</button></div>`;
- h+=`<div class="stats"><div class="stat"><b>${VM.length}</b><span>فرد في الأرشيف</span></div><div class="stat"><b>${VD.length}</b><span>مستند رسمي</span></div><div class="stat r"><b>${exp}</b><span>مستند منتهٍ</span></div><div class="stat a"><b>${soon}</b><span>قارب على الانتهاء</span></div></div>`;
+ h+='</div>';h+=`<div class="stats"><div class="stat"><b>${VM.length}</b><span>فرد في الأرشيف</span></div><div class="stat"><b>${VD.length}</b><span>مستند رسمي</span></div><div class="stat r"><b>${exp}</b><span>مستند منتهٍ</span></div><div class="stat a"><b>${soon}</b><span>قارب على الانتهاء</span></div></div>`;
  h+=`<div class="grid2"><div class="card"><h2><i class="ico i-bell"></i> تنبيهات الصلاحية</h2>${al.length?`<div class="list">${al.slice(0,6).map(o=>{const x=byId(o.d.memberId);const T=dtype(o.d.type);return x?`<div class="item" data-act="openMember" data-id="${x.id}">${avatar(x,'sm')}<div class="grow"><b>${esc(x.name)}</b><div class="small muted">${T[2]} ${esc(o.d.title||T[1])} — ${fmtD(o.d.expiryDate)}</div></div><span class="badge b-${o.s.k}">${o.s.label}</span></div>`:''}).join('')}</div>`:'<p class="muted"><i class="ico i-check"></i> جميع المستندات سارية المفعول.</p>'}</div>
  <div class="card"><h2><i class="ico i-cake"></i> أعياد ميلاد خلال 30 يوماً</h2>${bd.length?`<div class="list">${bd.map(o=>`<div class="item" data-act="openMember" data-id="${o.x.id}">${avatar(o.x,'sm')}<div class="grow"><b>${esc(o.x.name)}</b><div class="small muted">${o.b.date.toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'long'})} — يتم ${o.b.turns} سنة</div></div><span class="badge b-soon">${bdayLabel(o.b)}</span></div>`).join('')}</div>`:'<p class="muted">لا توجد أعياد ميلاد قريبة.</p>'}</div></div>`;
  h+=`<div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-folder"></i> الأسر</h2><div class="row"><input class="inp" id="mq" placeholder="تصفية بالاسم أو الأسرة…" value="${esc(view.q||'')}"><button class="btn" data-act="addMember">＋ إضافة فرد</button></div></div><div id="grid"></div></div>`;
