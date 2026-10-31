@@ -333,16 +333,17 @@ function famGroups(VM){
  VM.forEach(x=>{const hd=headOf(x);const k=hd?'h:'+hd.id:'f:'+(x.family||'أفراد آخرون');(groups[k]=groups[k]||{k,h:!!hd,head:hd,lbl:hd?hd.name:(x.family||'أفراد آخرون'),list:[]}).list.push(x);});
  const G=Object.values(groups);
  G.forEach(g=>g.list.sort((a,b)=>(b.isHead?1:0)-(a.isHead?1:0)));
- return G.sort((a,b)=>{if(a.h!==b.h)return a.h?-1:1;if(a.lbl==='أفراد آخرون')return 1;if(b.lbl==='أفراد آخرون')return -1;return a.lbl.localeCompare(b.lbl,'ar');});
+ const ord=settings.familyOrder||[];
+ return G.sort((a,b)=>{const ia=ord.indexOf(a.k),ib=ord.indexOf(b.k);if(ia>-1||ib>-1){if(ia<0)return 1;if(ib<0)return -1;return ia-ib;}if(a.h!==b.h)return a.h?-1:1;if(a.lbl==='أفراد آخرون')return 1;if(b.lbl==='أفراد آخرون')return -1;return a.lbl.localeCompare(b.lbl,'ar');});
 }
-function famCard(G){const ic=G.h?avatar(G.head):'<div class="av"><i class="ico i-folder"></i></div>';
- return `<div class="mcard" data-act="openFamily" data-key="${esc(G.k)}">${ic}<div class="nm">${G.h?'أسرة ':''}${esc(G.lbl)}</div><div class="small muted">${G.list.length} أفراد</div></div>`;}
+function famCard(G,n){const ic=G.h?avatar(G.head):'<div class="av"><i class="ico i-folder"></i></div>';
+ return `<div class="mcard" data-act="openFamily" data-key="${esc(G.k)}">${n?`<span class="dot badge b-ok">#${n}</span>`:''}${ic}<div class="nm">${G.h?'أسرة ':''}${esc(G.lbl)}</div><div class="small muted">${G.list.length} أفراد</div>${n?`<div class="row" style="justify-content:center;margin-top:6px"><button class="btn ghost sm" data-act="famMove" data-key="${esc(G.k)}" data-dir="-1">▲</button><button class="btn ghost sm" data-act="famMove" data-key="${esc(G.k)}" data-dir="1">▼</button></div>`:''}</div>`;}
 function memberCardHtml(x,fkey){const n=docs.filter(d=>d.memberId===x.id&&['expired','soon'].includes(docStatus(d).k)).length;const nb=nextBday(x.birthDate);
  return `<div class="mcard" data-act="openMember" data-id="${x.id}" data-fkey="${esc(fkey||'')}">${n?`<span class="dot badge b-expired" title="مستندات تحتاج تجديد"><i class="ico i-alert"></i> ${n}</span>`:''}${avatar(x)}<div class="nm">${esc(x.name)}</div><div class="small muted">${esc(x.relation||'')}</div>${x.isHead?'<div class="hbadge">رب الأسرة</div>':''}${nb&&nb.days<=7?`<div class="badge b-soon" style="margin-top:4px"><i class="ico i-cake"></i> ${bdayLabel(nb)}</div>`:''}</div>`;}
 function renderGrid(){const q=norm(view.q);const g=$('#grid');const VM=vMembers();
  if(!VM.length){g.innerHTML=`<div class="empty"><div style="font-size:44px"><i class="ico i-users"></i></div><p>ابدأ بإضافة نفسك ثم أبنائك وأسرهم، ولكل فرد ملفه الخاص بصورته ومستنداته.</p><button class="btn" data-act="addMember">＋ إضافة أول فرد</button></div>`;return;}
  const G=famGroups(VM).filter(F=>!q||F.list.some(x=>norm([x.name,x.relation,x.family,(headOf(x)||{}).name].join(' ')).includes(q)));
- g.innerHTML=G.length?`<div class="members">${G.map(famCard).join('')}</div>`:'<p class="muted">لا توجد نتائج مطابقة.</p>';}
+ g.innerHTML=G.length?`<div class="members">${G.map((F,i)=>famCard(F,view.name==='families'?i+1:0)).join('')}</div>`:'<p class="muted">لا توجد نتائج مطابقة.</p>';}
 
 function vFamilies(m){m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>
  <div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-folder"></i> الأسر</h2><div class="row"><input class="inp" id="fq" placeholder="ابحث عن أسرة أو فرد…" value="${esc(view.q||'')}"></div></div><div id="grid"></div></div>`;
@@ -547,6 +548,7 @@ const ACT={
  openMember:d=>d.id&&go('member',{id:d.id,fkey:d.fkey||null}),
 openFamily:d=>go('family',{key:d.key}),
 addMemberIn:d=>openMemberForm(d.head?{headId:d.head}:{family:d.fam}),
+famMove:async d=>{const keys=famGroups(vMembers()).map(F=>F.k);const i=keys.indexOf(d.key),j=i+(+d.dir);if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];settings.familyOrder=keys;await put('kv',settings,'settings');renderGrid();},
 backFam:d=>go('family',{key:d.key}),
 
  tab:d=>{view.tab=d.t;view.path=[];view.flt='all';view.limit=300;render();},
