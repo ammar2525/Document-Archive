@@ -214,7 +214,7 @@ footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 3
   </div>
   <nav class="nav">
     <button data-act="nav" data-v="home"><i class="ico i-home"></i> الرئيسية</button>
-    <button data-act="nav" data-v="alerts"><i class="ico i-bell"></i> التنبيهات<span class="pill" id="navAlertCount" hidden></span></button>
+    <button data-act="nav" data-v="families"><i class="ico i-users"></i> الأسر</button><button data-act="nav" data-v="alerts"><i class="ico i-bell"></i> التنبيهات<span class="pill" id="navAlertCount" hidden></span></button>
     <button data-act="nav" data-v="library"><i class="ico i-stack"></i> مكتبة الملفات</button>
     <button data-act="nav" data-v="settings"><i class="ico i-settings"></i> الإعدادات والنسخ الاحتياطي</button>
   </nav>
@@ -293,9 +293,7 @@ const vDocs=()=>docs.filter(d=>canSee(byId(d.memberId)));
 function avatar(x,cls=''){return x.photo?`<img class="av ${cls}" src="${ourl(x.photo)}" alt="">`:`<div class="av ${cls}">${esc((x.name||'؟').trim().charAt(0))}</div>`;}
 
 /* ============ العرض ============ */
-let hist=[];
-function go(name,p={}){if(view&&view.name){hist.push(view);if(hist.length>30)hist.shift();}view={name,...p};render();window.scrollTo(0,0);}
-function goBack(){view=hist.pop()||{name:'home'};render();window.scrollTo(0,0);}
+function go(name,p={}){view={name,...p};render();window.scrollTo(0,0);}
 function renderSess(){const el=$('#sess');const locked=isLocked();
  document.querySelectorAll('.nav button').forEach(b=>{const v=b.dataset.v;b.hidden=locked||(!isAdmin()&&(v==='library'||v==='settings'));});
  document.querySelector('.hsearch').hidden=locked;
@@ -309,7 +307,7 @@ function render(){freeUrls();searchToken++;renderSess();
  const al=alertsList();const pc=$('#navAlertCount');pc.textContent=al.length;pc.hidden=!al.length;
  document.title=(al.length?`(${al.length}) `:'')+'أرشيف أبو ياسر';
  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===view.name||(['member','search','family'].includes(view.name)&&b.dataset.v==='home')));
- ({home:vHome,member:vMember,family:vFamily,alerts:vAlerts,library:vLibrary,settings:vSettings,search:vSearch}[view.name]||vHome)($('#main'));}
+ ({home:vHome,member:vMember,family:vFamily,families:vFamilies,alerts:vAlerts,library:vLibrary,settings:vSettings,search:vSearch}[view.name]||vHome)($('#main'));}
 
 function vLock(m){const hs=heads();
  m.innerHTML=`<div class="card" style="max-width:820px;margin:16px auto;text-align:center"><div style="font-size:44px"><i class="ico i-lock"></i></div><h2>اختر أسرتك للدخول</h2><p class="muted small">كل أسرة ترى أفرادها ومستنداتها فقط، ويُطلب رمز الأسرة للدخول.</p>
@@ -346,9 +344,12 @@ function renderGrid(){const q=norm(view.q);const g=$('#grid');const VM=vMembers(
  const G=famGroups(VM).filter(F=>!q||F.list.some(x=>norm([x.name,x.relation,x.family,(headOf(x)||{}).name].join(' ')).includes(q)));
  g.innerHTML=G.length?`<div class="members">${G.map(famCard).join('')}</div>`:'<p class="muted">لا توجد نتائج مطابقة.</p>';}
 
+function vFamilies(m){m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>
+ <div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-folder"></i> الأسر</h2><div class="row"><input class="inp" id="fq" placeholder="ابحث عن أسرة أو فرد…" value="${esc(view.q||'')}"></div></div><div id="grid"></div></div>`;
+ renderGrid();$('#fq').oninput=e=>{view.q=e.target.value;renderGrid();};}
 function vFamily(m){const G=famGroups(vMembers()).find(F=>F.k===view.key);
  if(!G)return go('home');
- m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="back">→ رجوع</button></div>
+ m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="families">→ رجوع إلى الأسر</button></div>
  <div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-${G.h?'crown':'folder'}"></i> ${G.h?'أسرة ':''}${esc(G.lbl)} <span class="muted small">(${G.list.length})</span></h2><button class="btn" data-act="addMemberIn" data-head="${G.h?G.head.id:''}" data-fam="${G.h||G.lbl==='أفراد آخرون'?'':esc(G.lbl)}">＋ إضافة فرد</button></div>
  <div class="members">${G.list.map(x=>memberCardHtml(x,G.k)).join('')}</div></div>`;}
 function docCard(d,showMember){const s=docStatus(d);const T=dtype(d.type);const x=byId(d.memberId);
@@ -547,7 +548,7 @@ const ACT={
 openFamily:d=>go('family',{key:d.key}),
 addMemberIn:d=>openMemberForm(d.head?{headId:d.head}:{family:d.fam}),
 backFam:d=>go('family',{key:d.key}),
-back:()=>goBack(),
+
  tab:d=>{view.tab=d.t;view.path=[];view.flt='all';view.limit=300;render();},
  addMember:()=>openMemberForm({}),
  editMember:d=>openMemberForm(byId(d.id)),
