@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>أرشيف أبو ياسر</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet"><title>أرشيف أبو ياسر</title>
 <style>
-:root{--bg:#F3E9D7;--card:#FFFBF5;--ink:#3B2A22;--muted:#7A553A;--line:#D6BFA6;--brand:#3B2A22;--brand2:#7A553A;--gold:#B08968;--gold-soft:#E9DCC9;--red:#b3261e;--red-soft:#fbe4e2;--amber:#9a5c00;--amber-soft:#fdf0d8;--green:#2e7d4f;--green-soft:#e2f2e8;--shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05)}
+:root{--bg:#EEF7F5;--card:#FBFEFD;--ink:#0E2E2A;--muted:#3F6F68;--line:#C9E4DE;--brand:#0B4B43;--brand2:#167A6C;--gold:#1AA190;--gold-soft:#D5EFEA;--red:#b3261e;--red-soft:#fbe4e2;--amber:#9a5c00;--amber-soft:#fdf0d8;--green:#2e7d4f;--green-soft:#e2f2e8;--shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05)}
 *{box-sizing:border-box}
 html,body{margin:0}
-body{font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.6}
+body{font-family:Tajawal,"Segoe UI",Tahoma,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.6}
 button,input,select,textarea{font:inherit;color:inherit}
 a{cursor:pointer}
-header.top{background:linear-gradient(135deg,#3B2A22,#7A553A 55%,#B08968);color:#F3E9D7;padding:18px 24px 0}
+header.top{background:linear-gradient(135deg,#0B4B43,#167A6C 55%,#1AA190);color:#FFFFFF;padding:18px 24px 0}
 .brand{display:flex;align-items:center;gap:14px;flex-wrap:wrap;max-width:1200px;margin:0 auto}
-.mono{width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#F3E9D7,#B08968);display:grid;place-items:center;font-size:30px;font-weight:700;color:#3B2A22;box-shadow:0 0 0 3px rgba(255,255,255,.25);flex:none}
+.mono{width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#D5EFEA,#1AA190);display:grid;place-items:center;font-size:30px;font-weight:700;color:#0B4B43;box-shadow:0 0 0 3px rgba(255,255,255,.25);flex:none}
 .brand h1{margin:0;font-size:25px}
 .brand p{margin:0;opacity:.85;font-size:13.5px}
 .hsearch{margin-inline-start:auto;display:flex;gap:6px}
 .hsearch input{width:300px;max-width:70vw;border:0;border-radius:10px;padding:9px 12px;background:rgba(255,255,255,.96);color:var(--ink)}
 .nav{display:flex;gap:4px;margin:14px auto 0;flex-wrap:wrap;max-width:1200px}
-.nav button{background:transparent;border:0;color:#D6BFA6;padding:10px 16px;border-radius:10px 10px 0 0;cursor:pointer;font-weight:600}
+.nav button{background:transparent;border:0;color:#C9E4DE;padding:10px 16px;border-radius:10px 10px 0 0;cursor:pointer;font-weight:600}
 .nav button.active{background:var(--bg);color:var(--brand)}
 .nav button:hover:not(.active){background:rgba(255,255,255,.08)}
 .pill{display:inline-block;min-width:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;margin-inline-start:6px;text-align:center}
@@ -71,7 +71,7 @@ h3{font-size:16px;margin:0 0 10px}
 .profile{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
 .pinfo{flex:1;min-width:240px}
 .facts{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
-.notes{margin-top:12px;background:#faf7f0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
+.notes{margin-top:12px;background:#F1F8F6;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
 .pact{display:flex;flex-direction:column;gap:8px}
 .tabs{display:flex;gap:6px;margin:6px 0 14px;border-bottom:2px solid var(--line)}
 .tabs button{background:none;border:0;padding:10px 16px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px}
@@ -123,12 +123,12 @@ textarea{min-height:80px;resize:vertical}
 .toast.err{background:var(--red)}
 .banner{border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .banner.r{background:var(--red-soft);color:var(--red)}
-.banner.g{background:var(--gold-soft);color:#6d4d14}
+.banner.g{background:var(--gold-soft);color:#0B4B43}
 .empty{text-align:center;padding:28px 16px;color:var(--muted)}
 [hidden]{display:none!important}
 .sess{display:flex;gap:8px;align-items:center}
 .chip{background:rgba(255,255,255,.16);padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
-.hbadge{display:inline-block;margin-top:4px;padding:1px 9px;border-radius:999px;background:var(--gold-soft);color:#6d4d14;font-size:12px;font-weight:700}
+.hbadge{display:inline-block;margin-top:4px;padding:1px 9px;border-radius:999px;background:var(--gold-soft);color:#0B4B43;font-size:12px;font-weight:700}
 label.chk{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink)}
 footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 30px}
 
@@ -433,7 +433,7 @@ async function resizeImg(file,max=640){try{const bmp=await createImageBitmap(fil
 function memberForm(x){const VM=vMembers();const rels=uniq(['أنا','الزوجة','ابن','ابنة','زوجة ابن','زوج ابنة','حفيد','حفيدة','أخ','أخت',...VM.map(m=>m.relation)]);const fams=uniq(VM.map(m=>m.family));
  return `<div class="form"><div class="full row"><div id="phPrev">${x.photo?`<img class="av" style="margin:0" src="${ourl(x.photo)}">`:'<div class="av" style="margin:0"><i class="ico i-user"></i></div>'}</div><label class="f" style="flex:1">الصورة الشخصية (تظهر على بطاقته)<input type="file" name="photo" accept="image/*"></label>${x.photo?'<label class="small"><input type="checkbox" name="rmPhoto"> إزالة الصورة</label>':''}</div>
  <label class="f full">الاسم الكامل *<input name="name" required value="${esc(x.name)}"></label>
- ${isAdmin()?`<div class="full" style="background:#faf7f0;border:1px solid var(--line);border-radius:10px;padding:10px 12px"><label class="chk"><input type="checkbox" name="isHead" ${x.isHead?'checked':''}> <i class="ico i-crown"></i> هذا الفرد رب أسرة (تُجمع تحت اسمه أسرته ومستنداتها)</label>
+ ${isAdmin()?`<div class="full" style="background:#F1F8F6;border:1px solid var(--line);border-radius:10px;padding:10px 12px"><label class="chk"><input type="checkbox" name="isHead" ${x.isHead?'checked':''}> <i class="ico i-crown"></i> هذا الفرد رب أسرة (تُجمع تحت اسمه أسرته ومستنداتها)</label>
  <label class="f" id="headWrap" style="margin-top:8px" ${x.isHead?'hidden':''}>يتبع أسرة<select name="headId"><option value="">— لا يتبع أسرة —</option>${heads().filter(h=>h.id!==x.id).map(h=>`<option value="${h.id}" ${h.id===x.headId?'selected':''}>أسرة ${esc(h.name)}</option>`).join('')}</select></label></div>`:''}
  <label class="f">صلة القرابة<input name="relation" list="relL" value="${esc(x.relation)}" placeholder="ابن، زوجة ابن، حفيد…"></label>
  <label class="f">الفرع (اختياري، إن لم يُحدَّد رب أسرة)<input name="family" list="famL" value="${esc(x.family)}" placeholder="مثال: أسرة ياسر"></label>
