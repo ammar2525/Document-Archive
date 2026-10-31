@@ -206,7 +206,9 @@ footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 3
 .banners .banner .btn{margin-top:auto}
 .stats .stat{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 10px}
 .stats .stat b{display:inline;font-size:calc(20px * var(--fs,1));line-height:1.1}
-.stats .stat span{font-size:calc(11.5px * var(--fs,1));text-align:left}</style>
+.stats .stat span{font-size:calc(11.5px * var(--fs,1));text-align:left}
+.login{max-width:420px;margin:30px auto}.login .form{grid-template-columns:1fr}
+body.ro [data-act="addMember"],body.ro [data-act="addMemberIn"],body.ro [data-act="editMember"],body.ro [data-act="delMember"],body.ro [data-act="addDoc"],body.ro [data-act="editDoc"],body.ro [data-act="delDoc"],body.ro [data-act="saveDocToFolder"],body.ro [data-act="linkFolder"],body.ro [data-act="unlinkFolder"],body.ro [data-act="createFolder"],body.ro [data-act="famMove"]{display:none!important}</style>
 </head>
 <body>
 <header class="top">
@@ -227,7 +229,7 @@ footer{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 20px 3
   </nav>
 </header>
 <main id="main"></main>
-<footer>صُمِّم خصيصاً لـ عمار أحمد النشابة (أبو ياسر) — جميع البيانات محفوظة على هذا الجهاز فقط</footer>
+<footer>صُمِّم خصيصاً لـ عمار أحمد النشابة (أبو ياسر) — البيانات منشورة مشفّرة ولا تُعرض إلا بعد تسجيل الدخول</footer>
 <input type="file" id="importInp" accept=".json,application/json" hidden>
 
 <script>
@@ -237,8 +239,9 @@ function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,
 const store=(s,m='readonly')=>db.transaction(s,m).objectStore(s);
 const P=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
 const getAll=s=>P(store(s).getAll());
-const put=(s,v,k)=>P(k===undefined?store(s,'readwrite').put(v):store(s,'readwrite').put(v,k));
-const del=(s,k)=>P(store(s,'readwrite').delete(k));
+const dirtyOn=(s,k)=>{if(s==='members'||s==='docs'||(s==='kv'&&k==='settings'))setDirty(true);};
+const put=(s,v,k)=>(dirtyOn(s,k),P(k===undefined?store(s,'readwrite').put(v):store(s,'readwrite').put(v,k)));
+const del=(s,k)=>(dirtyOn(s,k),P(store(s,'readwrite').delete(k)));
 const kvGet=k=>P(store('kv').get(k));
 
 /* ============ أدوات ============ */
@@ -277,7 +280,7 @@ function mimeOf(name){const e=(name.split('.').pop()||'').toLowerCase();return {
 /* ============ الحالة ============ */
 let members=[],docs=[],settings={remindDays:60,lastBackup:null},root=null;
 let view={name:'home'},curBase=null,curEntries=[],searchToken=0;
-async function load(){members=await getAll('members');docs=await getAll('docs');settings=Object.assign({remindDays:60,lastBackup:null},(await kvGet('settings'))||{});root=(await kvGet('root'))||null;
+async function load(){members=await getAll('members');docs=await getAll('docs');settings=Object.assign({remindDays:60,lastBackup:null},(await kvGet('settings'))||{});root=(await kvGet('root'))||null;ACC=await getAccounts();
  members.sort((a,b)=>(a.order??a.created??0)-(b.order??b.created??0));}
 const byId=id=>members.find(m=>m.id===id);
 function docStatus(d){const n=daysUntil(d.expiryDate);if(n===null)return{k:'none',label:'بدون تاريخ انتهاء',n:99999};
@@ -290,8 +293,8 @@ function upcomingBdays(lim){return vMembers().map(x=>({x,b:nextBday(x.birthDate)
 /* ============ رب الأسرة والخصوصية ============ */
 let session=null;
 async function sha(s){s='aby|'+s;try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(_){let h=5381;for(const c of s)h=((h<<5)+h+c.codePointAt(0))|0;return 'f'+(h>>>0).toString(16);}}
-const isAdmin=()=>!settings.adminPin||session==='admin';
-const isLocked=()=>!!settings.adminPin&&!session;
+const isAdmin=()=>!!auth&&auth.role==='admin';
+const isLocked=()=>!auth;
 const heads=()=>members.filter(m=>m.isHead);
 function headOf(x){if(!x)return null;if(x.isHead)return x;const h=x.headId?byId(x.headId):null;return h&&h.isHead?h:null;}
 function canSee(x){if(!x)return false;if(isAdmin())return true;const h=headOf(x);return !!h&&h.id===session;}
@@ -303,13 +306,12 @@ function avatar(x,cls=''){return x.photo?`<img class="av ${cls}" src="${ourl(x.p
 function go(name,p={}){view={name,...p};render();window.scrollTo(0,0);}
 function renderSess(){const el=$('#sess');const locked=isLocked();
  document.querySelectorAll('.nav button').forEach(b=>{const v=b.dataset.v;b.hidden=locked||(!isAdmin()&&(v==='library'||v==='settings'));});
- document.querySelector('.hsearch').hidden=locked;
- if(!settings.adminPin){el.innerHTML='';return;}
- if(locked){el.innerHTML='<span class="chip"><i class="ico i-lock"></i> مقفل</span>';return;}
+ document.querySelector('.hsearch').hidden=locked;document.body.classList.toggle('ro',!isAdmin());
+ if(locked){el.innerHTML='';return;}
  const h=session==='admin'?null:byId(session);
- el.innerHTML=`<span class="chip">${session==='admin'?'<i class="ico i-shield"></i> المدير':'<i class="ico i-users"></i> أسرة '+esc(h?h.name:'')}</span><button class="btn sm ghost" data-act="lock"><i class="ico i-lock"></i> قفل</button>`;}
+ el.innerHTML=`<span class="chip">${session==='admin'?'<i class="ico i-shield"></i> المدير':'<i class="ico i-users"></i> أسرة '+esc(h?h.name:'')} · <span dir="ltr">${esc(auth.user)}</span></span>${isAdmin()&&isDirty()?'<button class="btn sm gold" data-act="nav" data-v="settings" title="توجد تعديلات لم تُنشر على الموقع">نشر التعديلات</button>':''}<button class="btn sm ghost" data-act="lock"><i class="ico i-lock"></i> تسجيل الخروج</button>`;}
 function render(){freeUrls();searchToken++;renderSess();
- if(isLocked()){$('#navAlertCount').hidden=true;document.title='أرشيف أبو ياسر';vLock($('#main'));return;}
+ if(isLocked()){$('#navAlertCount').hidden=true;document.title='أرشيف أبو ياسر';vLogin($('#main'));return;}
  if(!isAdmin()&&['library','settings'].includes(view.name))view={name:'home'};
  const al=alertsList();const pc=$('#navAlertCount');pc.textContent=al.length;pc.hidden=!al.length;
  document.title=(al.length?`(${al.length}) `:'')+'أرشيف أبو ياسر';
@@ -452,12 +454,7 @@ function vSearch(m){const q=norm(view.q);
  ${root&&isAdmin()?`<div class="card"><p class="muted" style="margin:0">للبحث في أسماء الملفات والصور داخل الجهاز: <a class="lnk" data-act="searchDiskFor">ابحث عن «${esc(view.q)}» في مكتبة الملفات</a></p></div>`:''}`;}
 
 function vSettings(m){const bk=settings.lastBackup?new Date(settings.lastBackup).toLocaleString('ar-u-nu-latn'):'لم تُحفظ نسخة بعد';const hs=heads();
- m.innerHTML=`<div class="card"><h2><i class="ico i-shield"></i> المدير وخصوصية الأسر</h2>
- <p class="muted small">المدير يحدد «رب الأسرة» لكل أسرة من نافذة تعديل بيانات الفرد، ويربط بقية الأفراد بأسرهم. بعد تحديد رمز المدير يُقفل البرنامج عند فتحه: كل أسرة تدخل برمزها فترى أفرادها ومستنداتها فقط، والمدير يرى الجميع.</p>
- <div class="row"><b>${settings.adminPin?'✓ رمز المدير مفعّل':'لا يوجد رمز مدير — البرنامج مفتوح بالكامل'}</b><button class="btn" data-act="setAdminPin">${settings.adminPin?'تغيير رمز المدير':'تحديد رمز المدير'}</button>${settings.adminPin?'<button class="btn danger" data-act="rmAdminPin">إلغاء الرمز</button>':''}</div>
- <h3 style="margin-top:16px">أرباب الأسر (${hs.length})</h3>
- ${hs.length?`<div style="overflow:auto"><table><tr><th>رب الأسرة</th><th>عدد أفراد الأسرة</th><th>رمز الأسرة</th><th></th></tr>${hs.map(h=>`<tr><td><a class="lnk" data-act="openMember" data-id="${h.id}">${esc(h.name)}</a></td><td>${members.filter(x=>headOf(x)===h).length}</td><td>${h.pin?'<span class="badge b-ok">محدَّد</span>':'<span class="badge b-none">غير محدَّد</span>'}</td><td><button class="btn ghost sm" data-act="setFamPin" data-id="${h.id}">${h.pin?'تغيير الرمز':'تحديد الرمز'}</button></td></tr>`).join('')}</table></div>`:'<p class="muted small">لا يوجد بعد. افتح بطاقة أي فرد ← «تعديل البيانات» ← علّم «هذا الفرد رب أسرة».</p>'}
- <p class="small amber" style="margin-bottom:0"><i class="ico i-alert"></i> احفظ رمز المدير في مكان آمن؛ إن نُسي فلا يمكن فتح الأرشيف كاملاً من البرنامج. والرموز تمنع فتح الأقسام من داخل البرنامج، لكنها ليست تشفيراً للبيانات المحفوظة في متصفح هذا الجهاز.</p></div>
+ m.innerHTML=`${accountsCard()}
  <div class="card"><h2><i class="ico i-stack"></i> المجلد الرئيسي للأرشيف</h2><p class="muted small">المجلد في القرص الصلب الذي يضم مجلدات الأفراد وصور الهاتف المنقولة. البرنامج يقرأ منه، ولا يكتب فيه إلا بأمر صريح منك (إنشاء مجلد لفرد، أو نسخ مستند، أو حفظ نسخة احتياطية) ولا يحذف منه شيئاً.</p>
  <div class="row"><b>${root?'<i class="ico i-folder"></i> '+esc(root.name):'لم يُحدَّد بعد'}</b>${fsOK?`<button class="btn ${root?'ghost':''}" data-act="setRoot">${root?'تغيير المجلد':'اختيار المجلد الرئيسي'}</button>`:'<span class="red small">يتطلب Chrome أو Edge</span>'}</div></div>
  <div class="card"><h2><i class="ico i-bell"></i> التنبيهات</h2><div class="row"><label class="f">المدة الافتراضية للتنبيه قبل انتهاء المستند (بالأيام)<input type="number" id="setRemind" min="1" value="${esc(settings.remindDays)}" style="width:140px"></label><button class="btn" data-act="saveSettings" style="align-self:flex-end">حفظ</button></div><p class="muted small">يمكن تغيير المدة لكل مستند على حدة من نافذة تعديله (مثلاً 180 يوماً لجواز السفر).</p></div>
@@ -543,6 +540,139 @@ async function uniqueFile(dir,name){const dot=name.lastIndexOf('.');const base=d
  while(true){try{await dir.getFileHandle(n);n=`${base} (${i++})${ext}`;}catch(_){return dir.getFileHandle(n,{create:true});}}}
 async function writeBlob(dir,name,blob){const fh=await uniqueFile(dir,safeName(name));const w=await fh.createWritable();await w.write(blob);await w.close();return fh.name;}
 async function needWrite(h){return (await h.queryPermission({mode:'readwrite'}))==='granted'||(await h.requestPermission({mode:'readwrite'}))==='granted';}
+
+/* ============ بوابة الدخول والنشر المشفّر ============ */
+const PUB_FILE='data.enc.json',PUB_REPO='ammar2525/document-archive',PBKDF_IT=310000;
+let auth=null,pub=null,ACC={};
+const TE=s=>new TextEncoder().encode(s),TD=u=>new TextDecoder().decode(u);
+function b64e(u8){let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s);}
+function b64d(s){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
+const rnd=n=>crypto.getRandomValues(new Uint8Array(n));
+async function kekFrom(pass,salt,it){const k=await crypto.subtle.importKey('raw',TE(pass),'PBKDF2',false,['deriveKey']);
+ return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64d(salt),iterations:it,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const dekKey=raw=>crypto.subtle.importKey('raw',b64d(raw),'AES-GCM',false,['encrypt','decrypt']);
+async function encB(key,u8){const iv=rnd(12);return {iv:b64e(iv),ct:b64e(new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,u8)))};}
+async function decB(key,o){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(o.iv)},key,b64d(o.ct)));}
+async function zip(u8,un){const S=un?window.DecompressionStream:window.CompressionStream;if(!S)return null;
+ return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new S('gzip'))).arrayBuffer());}
+async function userKey(u){const b=await crypto.subtle.digest('SHA-256',TE('aby-user|'+String(u).trim().toLowerCase()));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+const isDirty=()=>{try{return localStorage.getItem('arch-dirty')==='1'||(!localStorage.getItem('arch-pubdate')&&members.length>0);}catch(e){return false;}};
+function setDirty(v){try{v?localStorage.setItem('arch-dirty','1'):localStorage.removeItem('arch-dirty');}catch(e){}}
+const pubDate=()=>{try{return localStorage.getItem('arch-pubdate');}catch(e){return null;}};
+function saveAuth(){try{auth&&auth.role==='admin'?localStorage.setItem('arch-auth',JSON.stringify(auth)):localStorage.removeItem('arch-auth');}catch(e){}}
+function loadAuth(){try{const a=JSON.parse(localStorage.getItem('arch-auth')||'null');return a&&a.role==='admin'?a:null;}catch(e){return null;}}
+const pubToken={get(){try{return localStorage.getItem('arch-pub-token');}catch(e){return null;}},set(v){try{v?localStorage.setItem('arch-pub-token',v):localStorage.removeItem('arch-pub-token');}catch(e){}}};
+async function fetchPub(){try{const r=await fetch(PUB_FILE+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)return null;const j=await r.json();return j&&j.app==='abu-yaser-archive'&&j.accounts?j:null;}catch(e){return null;}}
+const getAccounts=async()=>(await kvGet('accounts'))||{};
+async function putAccounts(a){await P(store('kv','readwrite').put(a,'accounts'));ACC=a;}
+const hasAdminAcc=()=>Object.values(ACC).some(v=>v.role==='admin');
+const getDeks=async()=>(await kvGet('deks'))||{};
+async function ensureDek(deks,bid){if(!deks[bid])deks[bid]=b64e(rnd(32));return deks[bid];}
+function bundleOf(x){const h=headOf(x);return h?h.id:'_';}
+async function decodeBundle(raw,b){let u=await decB(await dekKey(raw),b);if(b.z)u=await zip(u,true);return JSON.parse(TD(u));}
+function fromWire(j){return {members:(j.members||[]).map(x=>({...x,photo:x.photo?d2b(x.photo):null})),docs:(j.docs||[]).map(d=>({...d,files:(d.files||[]).map(f=>({name:f.name,type:f.type,blob:d2b(f.data)}))}))};}
+function setSession(a){auth=a;session=a?(a.role==='admin'?'admin':a.headId):null;saveAuth();}
+async function clearData(){await P(store('members','readwrite').clear());await P(store('docs','readwrite').clear());}
+
+async function doLogin(user,pass){const uk=await userKey(user);
+ const pa=pub&&pub.accounts[uk];
+ if(pa){let kek,keys={};try{kek=await kekFrom(pass,pa.salt,pa.it);for(const[bid,w]of Object.entries(pa.keys||{}))keys[bid]=b64e(await decB(kek,w));}catch(e){keys=null;}
+  if(keys){
+   if(pa.role==='admin'){
+    const keep=isDirty()&&members.length&&!confirm('يوجد على هذا الجهاز تعديلات لم تُنشر على الموقع بعد.\n\nهل تريد استبدالها بالنسخة المنشورة؟\n(موافق = استبدال، إلغاء = الإبقاء على بيانات هذا الجهاز)');
+    if(!keep){toast('جارٍ فك تشفير البيانات…');await clearData();let st=null;
+     for(const[bid,b]of Object.entries(pub.bundles)){if(!keys[bid])continue;const j=await decodeBundle(keys[bid],b);const w=fromWire(j);
+      for(const x of w.members)await P(store('members','readwrite').put(x));for(const d of w.docs)await P(store('docs','readwrite').put(d));if(bid==='_')st=j.settings;}
+     const cur=(await kvGet('settings'))||{};await P(store('kv','readwrite').put({...cur,...(st||{})},'settings'));
+     const acc={};for(const[k,v]of Object.entries(pub.accounts)){const{keys:_,...rest}=v;acc[k]=v.role==='admin'?rest:v;}
+     await putAccounts(acc);await P(store('kv','readwrite').put(keys,'deks'));
+     setDirty(false);try{localStorage.setItem('arch-pubdate',pub.date);}catch(e){}}
+    setSession({role:'admin',user:String(user).trim()});await load();return true;}
+   const raw=keys[pa.headId];if(!raw||!pub.bundles[pa.headId])throw new Error('لا توجد بيانات منشورة لهذه الأسرة بعد');
+   const j=await decodeBundle(raw,pub.bundles[pa.headId]);const w=fromWire(j);
+   members=w.members.sort((a,b)=>(a.order??a.created??0)-(b.order??b.created??0));docs=w.docs;settings=Object.assign({remindDays:60},j.settings||{});root=null;
+   setSession({role:'family',user:String(user).trim(),headId:pa.headId});return true;}}
+ const la=(await getAccounts())[uk];
+ if(la&&la.role==='admin'){try{await decB(await kekFrom(pass,la.salt,la.it),la.ver);}catch(e){return false;}
+  setSession({role:'admin',user:String(user).trim()});await load();return true;}
+ return false;}
+async function logout(){const fam=auth&&auth.role!=='admin';setSession(null);closeViewer();
+ members=[];docs=[];if(!fam)root=null;view={name:'home'};render();}
+
+function vLogin(m){const needSetup=!pub&&!hasAdminAcc();
+ m.innerHTML=`<div class="card login"><div style="font-size:44px;text-align:center"><i class="ico i-lock"></i></div>
+ <h2 style="text-align:center">${needSetup?'إعداد حساب المدير':'تسجيل الدخول'}</h2>
+ <p class="muted small" style="text-align:center">${needSetup?'لا توجد بيانات منشورة على الموقع بعد. أنشئ حساب المدير لتبدأ، ثم انشر البيانات من «الإعدادات».':'أدخل اسم المستخدم وكلمة السر الخاصة بك.'}</p>
+ <form id="loginF" class="form" autocomplete="on"><label class="f full">اسم المستخدم<input name="u" autocomplete="username" required></label>
+ <label class="f full">كلمة السر<input name="p" type="password" autocomplete="${needSetup?'new-password':'current-password'}" ${needSetup?'minlength="8"':''} required></label>
+ ${needSetup?'<label class="f full">تأكيد كلمة السر<input name="p2" type="password" autocomplete="new-password" required></label>':''}
+ <p class="small red full" data-err hidden></p><div class="full"><button class="btn gold" type="submit" style="width:100%">${needSetup?'إنشاء الحساب والدخول':'دخول'}</button></div></form></div>`;
+ const f=$('#loginF'),err=f.querySelector('[data-err]');
+ f.onsubmit=async e=>{e.preventDefault();const fd=new FormData(f),u=fd.get('u').trim(),p=fd.get('p');const b=f.querySelector('[type=submit]');err.hidden=true;b.disabled=true;
+  try{if(needSetup){if(p!==fd.get('p2')){err.textContent='كلمتا السر غير متطابقتين';err.hidden=false;return;}
+    await setAdminAccount(u,p);setSession({role:'admin',user:u});await load();go('home');toast('تم إنشاء حساب المدير ✓');return;}
+   b.textContent='جارٍ الدخول…';
+   if(await doLogin(u,p)){go('home');const al=alertsList();toast(al.length?`أهلاً ${u} — ${al.length} مستند منتهٍ أو قارب على الانتهاء`:`أهلاً ${u} ✓`);}
+   else{err.textContent='اسم المستخدم أو كلمة السر غير صحيحة';err.hidden=false;}}
+  catch(x){console.error(x);err.textContent='تعذّر الدخول: '+x.message;err.hidden=false;}
+  finally{b.disabled=false;if(!needSetup)b.textContent='دخول';}};}
+
+async function setAdminAccount(u,p){const acc=await getAccounts();const uk=await userKey(u);
+ if(acc[uk]&&acc[uk].role!=='admin')throw new Error('اسم المستخدم مستخدم لأسرة أخرى');
+ for(const[k,v]of Object.entries(acc))if(v.role==='admin')delete acc[k];
+ const salt=b64e(rnd(16)),kek=await kekFrom(p,salt,PBKDF_IT);
+ acc[uk]={role:'admin',salt,it:PBKDF_IT,ver:await encB(kek,TE('ok'))};
+ await putAccounts(acc);settings.accountNames={...(settings.accountNames||{}),admin:u};await put('kv',settings,'settings');setDirty(true);}
+async function setFamAccount(h,u,p){const acc=await getAccounts();const uk=await userKey(u);
+ if(acc[uk]&&!(acc[uk].role==='family'&&acc[uk].headId===h.id))throw new Error('اسم المستخدم مستخدم مسبقاً');
+ for(const[k,v]of Object.entries(acc))if(v.role==='family'&&v.headId===h.id)delete acc[k];
+ const deks=await getDeks();const raw=await ensureDek(deks,h.id);
+ const salt=b64e(rnd(16)),kek=await kekFrom(p,salt,PBKDF_IT);
+ acc[uk]={role:'family',headId:h.id,salt,it:PBKDF_IT,keys:{[h.id]:await encB(kek,b64d(raw))}};
+ await P(store('kv','readwrite').put(deks,'deks'));await putAccounts(acc);
+ settings.accountNames={...(settings.accountNames||{}),[h.id]:u};await put('kv',settings,'settings');setDirty(true);}
+async function rmFamAccount(h){const acc=await getAccounts();for(const[k,v]of Object.entries(acc))if(v.role==='family'&&v.headId===h.id)delete acc[k];
+ await putAccounts(acc);const n={...(settings.accountNames||{})};delete n[h.id];settings.accountNames=n;await put('kv',settings,'settings');setDirty(true);}
+
+async function buildPub(adminPass){const acc=await getAccounts();const ae=Object.entries(acc).find(([,v])=>v.role==='admin');
+ if(!ae)throw new Error('لا يوجد حساب مدير');const kek=await kekFrom(adminPass,ae[1].salt,ae[1].it);
+ try{await decB(kek,ae[1].ver);}catch(e){throw new Error('كلمة سر المدير غير صحيحة');}
+ const deks=await getDeks();const hids=new Set(heads().map(h=>h.id));const bids=['_',...hids];
+ const groups={};bids.forEach(b=>groups[b]={members:[],docs:[]});
+ for(const x of members){const bid=bundleOf(x);groups[bid].members.push({...x,pin:undefined,photo:x.photo?await b2d(x.photo):null});}
+ for(const d of docs){const x=byId(d.memberId);const bid=x?bundleOf(x):'_';const fs=[];for(const f of d.files||[])fs.push({name:f.name,type:f.type,data:await b2d(f.blob)});groups[bid].docs.push({...d,files:fs});}
+ const bundles={},adminKeys={};
+ for(const bid of bids){const raw=await ensureDek(deks,bid);
+  const st=bid==='_'?{remindDays:settings.remindDays,familyOrder:settings.familyOrder||[],accountNames:settings.accountNames||{}}:{remindDays:settings.remindDays};
+  let u=TE(JSON.stringify({...groups[bid],settings:st}));const z=await zip(u);
+  const b=await encB(await dekKey(raw),z||u);if(z)b.z=1;bundles[bid]=b;adminKeys[bid]=await encB(kek,b64d(raw));}
+ await P(store('kv','readwrite').put(deks,'deks'));
+ const accounts={};for(const[k,v]of Object.entries(acc)){if(v.role==='admin')accounts[k]={...v,keys:adminKeys};else if(hids.has(v.headId))accounts[k]=v;}
+ return {app:'abu-yaser-archive',v:2,date:new Date().toISOString(),accounts,bundles};}
+async function publishNow(adminPass){const token=pubToken.get();if(!token)throw new Error('اكتب رمز GitHub أولاً');
+ toast('جارٍ تشفير البيانات…');const file=await buildPub(adminPass);const text=JSON.stringify(file);
+ const mb=text.length/1048576;if(mb>90)throw new Error(`حجم البيانات كبير جداً (${mb.toFixed(0)} م.ب) — صغّر حجم الصور المرفقة`);
+ const url=`https://api.github.com/repos/${PUB_REPO}/contents/${PUB_FILE}`;const H={Authorization:'Bearer '+token,'X-GitHub-Api-Version':'2022-11-28'};
+ let sha=null;const meta=await fetch(url+'?t='+Date.now(),{headers:{...H,Accept:'application/vnd.github.object'},cache:'no-store'});
+ if(meta.status===200)sha=(await meta.json()).sha;else if(meta.status===401)throw new Error('رمز GitHub غير صالح أو منتهي');else if(meta.status!==404)throw new Error('GitHub '+meta.status);
+ toast(`جارٍ الرفع (${mb.toFixed(1)} م.ب)…`);
+ const body={message:'نشر تحديث الأرشيف '+file.date.slice(0,16),content:b64e(TE(text))};if(sha)body.sha=sha;
+ const r=await fetch(url,{method:'PUT',headers:{...H,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+ if(!r.ok)throw new Error(r.status===403||r.status===404?'الرمز لا يملك صلاحية الكتابة على المستودع':'تعذّر الرفع ('+r.status+')');
+ pub=file;setDirty(false);try{localStorage.setItem('arch-pubdate',file.date);}catch(e){}}
+function accountsCard(){const acc=ACC;const hasAdmin=hasAdminAcc();const names=settings.accountNames||{};const hs=heads();
+ const famUser=h=>Object.values(acc).some(v=>v.role==='family'&&v.headId===h.id)?(names[h.id]||'✓'):null;const pd=pubDate();const dirty=isDirty();
+ return `<div class="card"><h2><i class="ico i-shield"></i> الحسابات والنشر على الموقع</h2>
+ <p class="muted small">أي شخص يفتح الموقع يُطلب منه اسم المستخدم وكلمة السر. المدير يرى ويعدّل كل شيء، وكل أسرة ترى أفرادها ومستنداتها فقط (للعرض). البيانات تُنشر على الموقع <b>مشفّرة</b>، ولا يمكن قراءتها بدون كلمة السر.</p>
+ <div class="row"><b>${hasAdmin?'حساب المدير: <span dir="ltr">'+esc(names.admin||auth.user)+'</span>':'لا يوجد حساب مدير'}</b><button class="btn ghost sm" data-act="setAdminAcc">تغيير اسم المستخدم / كلمة السر</button></div>
+ <h3 style="margin-top:16px">حسابات الأسر (${hs.length})</h3>
+ ${hs.length?`<div style="overflow:auto"><table><tr><th>رب الأسرة</th><th>الأفراد</th><th>اسم المستخدم</th><th></th></tr>${hs.map(h=>{const u=famUser(h);return `<tr><td><a class="lnk" data-act="openMember" data-id="${h.id}">${esc(h.name)}</a></td><td>${members.filter(x=>headOf(x)===h).length}</td><td>${u?'<b dir="ltr">'+esc(u)+'</b>':'<span class="badge b-none">بدون حساب</span>'}</td><td class="row"><button class="btn ghost sm" data-act="setFamAcc" data-id="${h.id}">${u?'تغيير':'إنشاء حساب'}</button>${u?`<button class="btn danger sm" data-act="rmFamAcc" data-id="${h.id}">حذف</button>`:''}</td></tr>`;}).join('')}</table></div>`:'<p class="muted small">لا يوجد بعد. افتح بطاقة أي فرد ← «تعديل البيانات» ← علّم «هذا الفرد رب أسرة».</p>'}
+ <h3 style="margin-top:16px">النشر</h3>
+ <p class="small">آخر نشر: <b>${pd?new Date(pd).toLocaleString('ar-u-nu-latn'):'لم يُنشر بعد'}</b> ${dirty?'<span class="badge b-soon">توجد تعديلات لم تُنشر</span>':'<span class="badge b-ok">الموقع محدّث</span>'}</p>
+ ${pubToken.get()?`<div class="row"><button class="btn gold" data-act="publish"><i class="ico i-send"></i> نشر التحديثات على الموقع</button><button class="btn ghost sm" data-act="forgetPubToken">نسيان رمز GitHub</button></div>`
+ :`<div class="form"><label class="f full">رمز GitHub (Token) بصلاحية الكتابة على <span dir="ltr">${PUB_REPO}</span><input id="pubTok" type="password" dir="ltr" autocomplete="off"></label></div><div class="row"><button class="btn" data-act="savePubToken">حفظ الرمز</button></div>`}
+ <p class="small muted" style="margin-bottom:0">بعد النشر يحتاج الموقع دقيقة إلى دقيقتين حتى تظهر التحديثات للجميع. أي تعديل أو حساب جديد لا يظهر للآخرين إلا بعد الضغط على «نشر».</p></div>`;}
+const WRITE_ACTS=new Set(['addMember','addMemberIn','editMember','delMember','addDoc','editDoc','delDoc','saveDocToFolder','linkFolder','unlinkFolder','createFolder','famMove','setRoot','importFamilies','saveSettings','exportDl','exportRoot','importBk','ghSave','ghPushNow','ghPullNow','ghForget','setAdminAcc','setFamAcc','rmFamAcc','publish','savePubToken','forgetPubToken']);
 
 /* ============ الأوامر ============ */
 function parseFamilyText(txt){const blocks=[];let cur=null;
@@ -659,7 +789,13 @@ backFam:d=>go('family',{key:d.key}),
   for(const f of files){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),8000);}
   window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');
   toast('نُزّلت نسخة من المستند في «التنزيلات». أرفقها في محادثة واتساب');},
- lock:()=>{session=null;closeViewer();go('home');},
+ lock:async()=>{if(isAdmin()&&isDirty()&&!confirm('توجد تعديلات لم تُنشر على الموقع بعد (ستبقى محفوظة على هذا الجهاز). تسجيل الخروج؟'))return;await logout();},
+ setAdminAcc:()=>modal('حساب المدير',`<div class="form"><label class="f full">اسم المستخدم<input name="u" value="${esc((settings.accountNames||{}).admin||auth.user)}" required></label><label class="f">كلمة السر الجديدة (8 خانات أو أكثر)<input type="password" name="p1" autocomplete="new-password" minlength="8" required></label><label class="f">تأكيد كلمة السر<input type="password" name="p2" autocomplete="new-password" required></label></div><p class="small red" data-err hidden>كلمتا السر غير متطابقتين</p>`,async f=>{const fd=new FormData(f);if(fd.get('p1')!==fd.get('p2')){f.querySelector('[data-err]').hidden=false;return false;}const u=fd.get('u').trim();await setAdminAccount(u,fd.get('p1'));setSession({role:'admin',user:u});render();toast('تم الحفظ ✓ — اضغط «نشر» ليصير فعّالاً على الموقع');}),
+ setFamAcc:d=>{const h=byId(d.id);if(!h)return;modal('حساب أسرة '+esc(h.name),`<p class="muted small">بهذا الحساب تدخل الأسرة وترى أفرادها ومستنداتها فقط (للعرض).</p><div class="form"><label class="f full">اسم المستخدم<input name="u" dir="ltr" value="${esc((settings.accountNames||{})[h.id]||'')}" required></label><label class="f">كلمة السر (8 خانات أو أكثر)<input type="password" name="p1" autocomplete="new-password" minlength="8" required></label><label class="f">تأكيد كلمة السر<input type="password" name="p2" autocomplete="new-password" required></label></div><p class="small red" data-err hidden></p>`,async f=>{const fd=new FormData(f),e=f.querySelector('[data-err]');if(fd.get('p1')!==fd.get('p2')){e.textContent='كلمتا السر غير متطابقتين';e.hidden=false;return false;}try{await setFamAccount(h,fd.get('u').trim(),fd.get('p1'));}catch(x){e.textContent=x.message;e.hidden=false;return false;}render();toast('تم حفظ الحساب ✓ — اضغط «نشر» ليصير فعّالاً على الموقع');});},
+ rmFamAcc:async d=>{const h=byId(d.id);if(!h||!confirm(`حذف حساب أسرة «${h.name}»؟ لن تتمكن الأسرة من الدخول بعد النشر.`))return;await rmFamAccount(h);render();toast('تم حذف الحساب');},
+ savePubToken:()=>{const t=($('#pubTok')||{}).value?.trim();if(!t)return toast('اكتب الرمز',true);pubToken.set(t);render();toast('تم حفظ الرمز على هذا الجهاز ✓');},
+ forgetPubToken:()=>{if(!confirm('حذف رمز GitHub من هذا الجهاز؟'))return;pubToken.set(null);render();},
+ publish:()=>modal('نشر التحديثات على الموقع',`<p class="muted small">للتأكيد، أدخل كلمة سر المدير. ستُشفَّر البيانات وتُرفع إلى الموقع.</p><label class="f">كلمة سر المدير<input type="password" name="p" autocomplete="current-password" required></label><p class="small red" data-err hidden></p>`,async f=>{const e=f.querySelector('[data-err]');e.hidden=true;try{await publishNow(new FormData(f).get('p'));}catch(x){e.textContent=x.message;e.hidden=false;return false;}render();toast('تم النشر ✓ — تظهر التحديثات للجميع خلال دقيقة أو دقيقتين');},'نشر'),
  unlockAdmin:()=>pinPrompt('<i class="ico i-shield"></i> دخول المدير',async p=>{if((await sha(p))!==settings.adminPin)return false;session='admin';go('home');return true;}),
  unlockFam:d=>{const h=byId(d.id);if(!h)return;if(!h.pin)return toast('لم يحدِّد المدير رمزاً لهذه الأسرة بعد',true);
   pinPrompt('دخول أسرة '+esc(h.name),async p=>{if((await sha(p))!==h.pin)return false;session=h.id;go('home');return true;});},
@@ -669,7 +805,7 @@ backFam:d=>go('family',{key:d.key}),
 };
 function pinPrompt(title,check){modal(title,`<label class="f">الرمز<input type="password" name="pin" autocomplete="off" required></label><p class="small red" data-err hidden>الرمز غير صحيح</p>`,async f=>{const ok=await check(new FormData(f).get('pin'));if(!ok){f.querySelector('[data-err]').hidden=false;return false;}},'دخول');}
 function newPinModal(title,note,onPin){modal(title,`<p class="muted small">${note}</p><div class="form"><label class="f">الرمز الجديد (4 خانات أو أكثر)<input type="password" name="p1" autocomplete="new-password" minlength="4" required></label><label class="f">تأكيد الرمز<input type="password" name="p2" autocomplete="new-password" required></label></div><p class="small red" data-err hidden>الرمزان غير متطابقين</p>`,async f=>{const fd=new FormData(f);if(fd.get('p1')!==fd.get('p2')){f.querySelector('[data-err]').hidden=false;return false;}await onPin(fd.get('p1'));});}
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-act]');if(!t||t.closest('.modal'))return;e.preventDefault();const fn=ACT[t.dataset.act];if(!fn)return;try{await fn(t.dataset,t,e);}catch(err){console.error(err);toast('حدث خطأ: '+err.message,true);}});
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-act]');if(!t||t.closest('.modal'))return;e.preventDefault();const fn=ACT[t.dataset.act];if(!fn)return;if(!isAdmin()&&WRITE_ACTS.has(t.dataset.act))return toast('هذا الحساب للعرض فقط',true);try{await fn(t.dataset,t,e);}catch(err){console.error(err);toast('حدث خطأ: '+err.message,true);}});
 document.addEventListener('change',e=>{const t=e.target.closest('[data-chg]');if(t&&t.dataset.chg==='flt'){view.flt=t.value;view.limit=300;render();}});
 $('#gq').addEventListener('keydown',e=>{if(e.key==='Enter')ACT.gsearch();});
 $('#importInp').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
@@ -679,7 +815,7 @@ $('#importInp').addEventListener('change',async e=>{const f=e.target.files[0];e.
   await load();render();toast('تمت الاستعادة ✓');}catch(err){toast('تعذّرت الاستعادة: '+err.message,true);}});
 
 /* ============ التشغيل ============ */
-(async()=>{try{db=await openDB();await load();render();const al=alertsList();if(al.length)toast(`تنبيه: ${al.length} مستند منتهٍ أو قارب على الانتهاء`);try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();}catch(_){}}
+(async()=>{try{db=await openDB();ACC=await getAccounts();pub=await fetchPub();const a=loadAuth();if(a&&(hasAdminAcc()||(pub&&Object.values(pub.accounts).some(v=>v.role==='admin')))){setSession(a);await load();}render();const al=auth?alertsList():[];if(al.length)toast(`تنبيه: ${al.length} مستند منتهٍ أو قارب على الانتهاء`);try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();}catch(_){}}
  catch(e){$('#main').innerHTML=`<div class="card empty">تعذّر تشغيل البرنامج: ${esc(e.message)}<br>جرّب فتحه في Google Chrome أو Microsoft Edge.</div>`;}})();
 </script>
 <script>
