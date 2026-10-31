@@ -269,8 +269,8 @@ function render(){freeUrls();searchToken++;renderSess();
  if(!isAdmin()&&['library','settings'].includes(view.name))view={name:'home'};
  const al=alertsList();const pc=$('#navAlertCount');pc.textContent=al.length;pc.hidden=!al.length;
  document.title=(al.length?`(${al.length}) `:'')+'أرشيف أبو ياسر';
- document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===view.name||(['member','search'].includes(view.name)&&b.dataset.v==='home')));
- ({home:vHome,member:vMember,alerts:vAlerts,library:vLibrary,settings:vSettings,search:vSearch}[view.name]||vHome)($('#main'));}
+ document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===view.name||(['member','search','family'].includes(view.name)&&b.dataset.v==='home')));
+ ({home:vHome,member:vMember,family:vFamily,alerts:vAlerts,library:vLibrary,settings:vSettings,search:vSearch}[view.name]||vHome)($('#main'));}
 
 function vLock(m){const hs=heads();
  m.innerHTML=`<div class="card" style="max-width:820px;margin:16px auto;text-align:center"><div style="font-size:44px"><i class="ico i-lock"></i></div><h2>اختر أسرتك للدخول</h2><p class="muted small">كل أسرة ترى أفرادها ومستنداتها فقط، ويُطلب رمز الأسرة للدخول.</p>
@@ -287,18 +287,31 @@ function vHome(m){const al=alertsList();const bd=upcomingBdays(30);
  h+=`<div class="stats"><div class="stat"><b>${VM.length}</b><span>فرد في الأرشيف</span></div><div class="stat"><b>${VD.length}</b><span>مستند رسمي</span></div><div class="stat r"><b>${exp}</b><span>مستند منتهٍ</span></div><div class="stat a"><b>${soon}</b><span>قارب على الانتهاء</span></div></div>`;
  h+=`<div class="grid2"><div class="card"><h2><i class="ico i-bell"></i> تنبيهات الصلاحية</h2>${al.length?`<div class="list">${al.slice(0,6).map(o=>{const x=byId(o.d.memberId);const T=dtype(o.d.type);return x?`<div class="item" data-act="openMember" data-id="${x.id}">${avatar(x,'sm')}<div class="grow"><b>${esc(x.name)}</b><div class="small muted">${T[2]} ${esc(o.d.title||T[1])} — ${fmtD(o.d.expiryDate)}</div></div><span class="badge b-${o.s.k}">${o.s.label}</span></div>`:''}).join('')}</div>`:'<p class="muted"><i class="ico i-check"></i> جميع المستندات سارية المفعول.</p>'}</div>
  <div class="card"><h2><i class="ico i-cake"></i> أعياد ميلاد خلال 30 يوماً</h2>${bd.length?`<div class="list">${bd.map(o=>`<div class="item" data-act="openMember" data-id="${o.x.id}">${avatar(o.x,'sm')}<div class="grow"><b>${esc(o.x.name)}</b><div class="small muted">${o.b.date.toLocaleDateString('ar-u-nu-latn',{day:'numeric',month:'long'})} — يتم ${o.b.turns} سنة</div></div><span class="badge b-soon">${bdayLabel(o.b)}</span></div>`).join('')}</div>`:'<p class="muted">لا توجد أعياد ميلاد قريبة.</p>'}</div></div>`;
- h+=`<div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-users"></i> أفراد الأرشيف</h2><div class="row"><input class="inp" id="mq" placeholder="تصفية بالاسم أو الأسرة…" value="${esc(view.q||'')}"><button class="btn" data-act="addMember">＋ إضافة فرد</button></div></div><div id="grid"></div></div>`;
+ h+=`<div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-folder"></i> الأسر</h2><div class="row"><input class="inp" id="mq" placeholder="تصفية بالاسم أو الأسرة…" value="${esc(view.q||'')}"><button class="btn" data-act="addMember">＋ إضافة فرد</button></div></div><div id="grid"></div></div>`;
  m.innerHTML=h;renderGrid();
  $('#mq').oninput=e=>{view.q=e.target.value;renderGrid();};}
 
+function famGroups(VM){
+ const groups={};
+ VM.forEach(x=>{const hd=headOf(x);const k=hd?'h:'+hd.id:'f:'+(x.family||'أفراد آخرون');(groups[k]=groups[k]||{k,h:!!hd,head:hd,lbl:hd?hd.name:(x.family||'أفراد آخرون'),list:[]}).list.push(x);});
+ const G=Object.values(groups);
+ G.forEach(g=>g.list.sort((a,b)=>(b.isHead?1:0)-(a.isHead?1:0)));
+ return G.sort((a,b)=>{if(a.h!==b.h)return a.h?-1:1;if(a.lbl==='أفراد آخرون')return 1;if(b.lbl==='أفراد آخرون')return -1;return a.lbl.localeCompare(b.lbl,'ar');});
+}
+function famCard(G){const ic=G.h?avatar(G.head):'<div class="av"><i class="ico i-folder"></i></div>';
+ return `<div class="mcard" data-act="openFamily" data-key="${esc(G.k)}">${ic}<div class="nm">${G.h?'أسرة ':''}${esc(G.lbl)}</div><div class="small muted">${G.list.length} أفراد</div></div>`;}
+function memberCardHtml(x,fkey){const n=docs.filter(d=>d.memberId===x.id&&['expired','soon'].includes(docStatus(d).k)).length;const nb=nextBday(x.birthDate);
+ return `<div class="mcard" data-act="openMember" data-id="${x.id}" data-fkey="${esc(fkey||'')}">${n?`<span class="dot badge b-expired" title="مستندات تحتاج تجديد"><i class="ico i-alert"></i> ${n}</span>`:''}${avatar(x)}<div class="nm">${esc(x.name)}</div><div class="small muted">${esc(x.relation||'')}</div>${x.isHead?'<div class="hbadge">رب الأسرة</div>':''}${nb&&nb.days<=7?`<div class="badge b-soon" style="margin-top:4px"><i class="ico i-cake"></i> ${bdayLabel(nb)}</div>`:''}</div>`;}
 function renderGrid(){const q=norm(view.q);const g=$('#grid');const VM=vMembers();
  if(!VM.length){g.innerHTML=`<div class="empty"><div style="font-size:44px"><i class="ico i-users"></i></div><p>ابدأ بإضافة نفسك ثم أبنائك وأسرهم، ولكل فرد ملفه الخاص بصورته ومستنداته.</p><button class="btn" data-act="addMember">＋ إضافة أول فرد</button></div>`;return;}
- const groups={};VM.filter(x=>!q||norm([x.name,x.relation,x.family,(headOf(x)||{}).name].join(' ')).includes(q)).forEach(x=>{const hd=headOf(x);const k=hd?'h:'+hd.id:'f:'+(x.family||'أفراد آخرون');const lbl=hd?'<i class="ico i-crown"></i> أسرة '+hd.name:(x.family||'أفراد آخرون');(groups[k]=groups[k]||{lbl,h:!!hd,list:[]}).list.push(x);});
- Object.values(groups).forEach(G=>G.list.sort((a,b)=>(b.isHead?1:0)-(a.isHead?1:0)));
- const keys=Object.keys(groups).sort((a,b)=>{const A=groups[a],B=groups[b];if(A.h!==B.h)return A.h?-1:1;if(A.lbl==='أفراد آخرون')return 1;if(B.lbl==='أفراد آخرون')return -1;return A.lbl.localeCompare(B.lbl,'ar');});
- g.innerHTML=keys.length?keys.map(k=>`<div class="gtitle">${esc(groups[k].lbl)} <span class="muted small">(${groups[k].list.length})</span></div><div class="members">${groups[k].list.map(x=>{const n=docs.filter(d=>d.memberId===x.id&&['expired','soon'].includes(docStatus(d).k)).length;const nb=nextBday(x.birthDate);
-  return `<div class="mcard" data-act="openMember" data-id="${x.id}">${n?`<span class="dot badge b-expired" title="مستندات تحتاج تجديد"><i class="ico i-alert"></i> ${n}</span>`:''}${avatar(x)}<div class="nm">${esc(x.name)}</div><div class="small muted">${esc(x.relation||'')}</div>${x.isHead?'<div class="hbadge">رب الأسرة</div>':''}${nb&&nb.days<=7?`<div class="badge b-soon" style="margin-top:4px"><i class="ico i-cake"></i> ${bdayLabel(nb)}</div>`:''}</div>`;}).join('')}</div>`).join(''):'<p class="muted">لا توجد نتائج مطابقة.</p>';}
+ const G=famGroups(VM).filter(F=>!q||F.list.some(x=>norm([x.name,x.relation,x.family,(headOf(x)||{}).name].join(' ')).includes(q)));
+ g.innerHTML=G.length?`<div class="members">${G.map(famCard).join('')}</div>`:'<p class="muted">لا توجد نتائج مطابقة.</p>';}
 
+function vFamily(m){const G=famGroups(vMembers()).find(F=>F.k===view.key);
+ if(!G)return go('home');
+ m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>
+ <div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-${G.h?'crown':'folder'}"></i> ${G.h?'أسرة ':''}${esc(G.lbl)} <span class="muted small">(${G.list.length})</span></h2></div>
+ <div class="members">${G.list.map(x=>memberCardHtml(x,G.k)).join('')}</div></div>`;}
 function docCard(d,showMember){const s=docStatus(d);const T=dtype(d.type);const x=byId(d.memberId);
  return `<div class="card doc ${s.k}"><div class="row between" style="align-items:flex-start"><div><div class="dt">${T[2]} ${esc(d.title||T[1])}</div>${showMember&&x?`<a class="lnk" data-act="openMember" data-id="${x.id}">${esc(x.name)}</a>`:''}</div><span class="badge b-${s.k}">${s.label}</span></div>
  <div class="kv">${d.number?`<div><span>الرقم</span><b dir="ltr">${esc(d.number)}</b></div>`:''}${d.issueDate?`<div><span>تاريخ الإصدار</span><b>${fmtD(d.issueDate)}</b></div>`:''}${d.expiryDate?`<div><span>تاريخ الانتهاء</span><b>${fmtD(d.expiryDate)}</b></div>`:''}</div>
@@ -308,8 +321,8 @@ function docCard(d,showMember){const s=docStatus(d);const T=dtype(d.type);const 
 
 async function vMember(m){const x=byId(view.id);if(!x||!canSee(x))return go('home');const hd=headOf(x);
  const md=docs.filter(d=>d.memberId===x.id).sort((a,b)=>docStatus(a).n-docStatus(b).n);
- const tab=view.tab||'docs';const a=age(x.birthDate);const nb=nextBday(x.birthDate);
- m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>
+ const tab=view.tab||'docs';const a=age(x.birthDate);const nb=nextBday(x.birthDate);const backBtn=view.fkey?`<button class="btn ghost sm" data-act="backFam" data-key="${esc(view.fkey)}">→ رجوع إلى الأسرة</button>`:'<button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button>';
+ m.innerHTML=`<div class="row" style="margin-bottom:12px">${backBtn}</div>
  <div class="card profile">${avatar(x,'lg')}<div class="pinfo"><h2 style="font-size:24px;margin:0">${esc(x.name)}</h2><div class="muted">${esc([x.relation,x.family].filter(Boolean).join(' · '))}</div>${x.isHead?'<div class="hbadge"><i class="ico i-crown"></i> رب الأسرة</div>':hd?`<div class="small">من <a class="lnk" data-act="openMember" data-id="${hd.id}">أسرة ${esc(hd.name)}</a></div>`:''}
  <div class="facts">${x.birthDate?`<span><i class="ico i-cake"></i> ${fmtD(x.birthDate)}${a!==null?` — العمر ${a} سنة`:''}</span>`:''}${nb&&nb.days<=30?`<span class="badge b-soon">عيد ميلاده ${bdayLabel(nb)}</span>`:''}${x.phone?`<span><i class="ico i-phone"></i> <span dir="ltr">${esc(x.phone)}</span></span>`:''}</div>
  ${x.notes?`<div class="notes">${esc(x.notes).replace(/\n/g,'<br>')}</div>`:''}</div>
@@ -318,7 +331,7 @@ async function vMember(m){const x=byId(view.id);if(!x||!canSee(x))return go('hom
  const b=$('#tabBody');
  if(tab==='docs'){b.innerHTML=`<div class="row between" style="margin-bottom:12px"><span class="muted small">جواز السفر، البطاقة السكانية، رخصة السياقة، ملكية المركبة وغيرها — مع تنبيه قبل انتهاء الصلاحية.</span><button class="btn" data-act="addDoc" data-id="${x.id}">＋ إضافة مستند</button></div>${md.length?`<div class="docs">${md.map(d=>docCard(d)).join('')}</div>`:'<div class="card empty">لم تُضف مستندات لهذا الفرد بعد.</div>'}`;}
  else await vMemberFiles(b,x);
- m.insertAdjacentHTML('beforeend',`<div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn ghost" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>`);}
+ m.insertAdjacentHTML('beforeend',`<div class="row" style="justify-content:flex-end;margin-top:16px">${backBtn}</div>`);}
 
 async function vMemberFiles(el,x){
  if(!fsOK){el.innerHTML=unsupportedHtml();return;}
@@ -491,7 +504,9 @@ const ACT={
  nav:d=>go(d.v),
  gsearch:()=>{const q=$('#gq').value.trim();if(q)go('search',{q});},
  searchDiskFor:()=>go('library',{dq:view.q}),
- openMember:d=>d.id&&go('member',{id:d.id}),
+ openMember:d=>d.id&&go('member',{id:d.id,fkey:d.fkey||null}),
+openFamily:d=>go('family',{key:d.key}),
+backFam:d=>go('family',{key:d.key}),
  tab:d=>{view.tab=d.t;view.path=[];view.flt='all';view.limit=300;render();},
  addMember:()=>openMemberForm({}),
  editMember:d=>openMemberForm(byId(d.id)),
