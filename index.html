@@ -231,6 +231,13 @@ body.ro [data-act="addMember"],body.ro [data-act="addMemberIn"],body.ro [data-ac
 .org ul ul{animation:tdrop .3s ease-out}
 .ocpl{display:flex;align-items:center;gap:6px;direction:rtl}
 .ohrt{color:#e25d6a;font-size:15px}
+.ocpl.ostack{flex-direction:column;gap:0}
+.osps{display:flex;gap:6px;justify-content:center}
+.osp{display:flex;flex-direction:column;align-items:center;position:relative;padding-top:4px}
+.osp::before{content:'';position:absolute;top:-2px;left:50%;height:18px;border-left:2px dashed #e9a3aa}
+.osp .ohrt{position:relative;z-index:1;background:var(--card);border-radius:50%;width:20px;height:20px;line-height:20px;font-size:13px;margin:-2px 0 2px}
+.osp .oc{width:100px;padding:8px 8px 6px;background:color-mix(in srgb,var(--card) 88%,#e9a3aa);border-style:dashed}
+.osp .oc .av{width:38px;height:38px;font-size:17px}
 .oc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 10px 8px;width:112px;box-shadow:var(--shadow);cursor:pointer;transition:transform .15s,box-shadow .15s;direction:rtl}
 .oc:not([data-act]){cursor:default}
 .oc[data-act]:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(11,75,67,.15)}
@@ -829,10 +836,11 @@ function treeCard(x,lbl,root){const nm=x?x.name:TREE_ROOT_SPOUSE;const sh=tks(nm
  return `<div class="oc${root?' oroot':''}"${x?` data-act="openMember" data-id="${x.id}"`:''} title="${esc(nm)}">${x?avatar(x):`<div class="av">${esc(nm.charAt(0))}</div>`}<b>${esc(sh)}</b>${lbl?`<small>${esc(lbl)}</small>`:''}</div>`;}
 function treeNode(T,x,i,n){const ks=(T.kids[x.id]||[]).slice().sort(treeCmp(T,x.id)),sp=T.sps[x.id]||[];const isRoot=T.root&&x.id===T.root.id;const open=view.open.has(x.id);
  let cards=treeCard(x,isRoot?'الجد':x.relation,isRoot);
- if(sp.length)cards+=sp.map(s=>'<span class="ohrt">♥</span>'+treeCard(s,isRoot?'الجدة':s.relation,isRoot)).join('');
+ if(sp.length&&isRoot)cards+=sp.map(s=>'<span class="ohrt">♥</span>'+treeCard(s,'الجدة',true)).join('');
+ else if(sp.length)cards+=`<div class="osps">${sp.map(s=>'<div class="osp"><span class="ohrt">♥</span>'+treeCard(s,s.relation,false)+'</div>').join('')}</div>`;
  else if(isRoot&&TREE_ROOT_SPOUSE)cards+='<span class="ohrt">♥</span>'+treeCard(null,'الجدة',true);
  const tog=ks.length?`<button class="otog" data-act="treeTog" data-id="${x.id}" title="${open?'طي الفرع':'عرض الأبناء'}">${open?'▴':'▾'} ${ks.length}</button>`:'';
- return `<li><div class="ocpl">${cards}</div>${tog?`<div class="obar">${tog}</div>`:''}${ks.length&&open?`<ul>${ks.slice().reverse().map(k=>treeNode(T,k,ks.indexOf(k),ks.length)).join('')}</ul>`:''}</li>`;}
+ return `<li><div class="ocpl${!isRoot&&sp.length?' ostack':''}">${cards}</div>${tog?`<div class="obar">${tog}</div>`:''}${ks.length&&open?`<ul>${ks.slice().reverse().map(k=>treeNode(T,k,ks.indexOf(k),ks.length)).join('')}</ul>`:''}</li>`;}
 function treeAllIds(T){const s=new Set();Object.keys(T.kids).forEach(k=>s.add(k));return s;}
 function vTree(m){m.innerHTML=`<div class="card"><div class="row between" style="margin-bottom:10px"><h2 style="margin:0"><i class="ico i-tree"></i> شجرة العائلة</h2><div class="row"><button class="btn ghost sm" data-act="treeAll" data-v="1">توسيع الكل</button><button class="btn ghost sm" data-act="treeAll" data-v="0">طي الكل</button><span class="ozoom"><button class="btn ghost sm" data-act="treeZoom" data-v="-1" title="تصغير">−</button><button class="btn ghost sm" data-act="treeZoom" data-v="0" title="ملاءمة الشاشة">ملاءمة</button><button class="btn ghost sm" data-act="treeZoom" data-v="1" title="تكبير">＋</button></span></div></div>
  ${isAdmin()?'<p class="muted small" style="margin-top:0">الربط تلقائي من الأسماء وصلة القرابة. لتصحيحه: افتح الفرد ← «تعديل البيانات» ← «في شجرة العائلة».</p>':''}<div class="owrap" id="treeWrap"><div id="treeBox"></div></div><div id="treeRest"></div></div>`;
