@@ -461,6 +461,7 @@ function vSettings(m){const bk=settings.lastBackup?new Date(settings.lastBackup)
  <div class="card"><h2><i class="ico i-stack"></i> المجلد الرئيسي للأرشيف</h2><p class="muted small">المجلد في القرص الصلب الذي يضم مجلدات الأفراد وصور الهاتف المنقولة. البرنامج يقرأ منه، ولا يكتب فيه إلا بأمر صريح منك (إنشاء مجلد لفرد، أو نسخ مستند، أو حفظ نسخة احتياطية) ولا يحذف منه شيئاً.</p>
  <div class="row"><b>${root?'<i class="ico i-folder"></i> '+esc(root.name):'لم يُحدَّد بعد'}</b>${fsOK?`<button class="btn ${root?'ghost':''}" data-act="setRoot">${root?'تغيير المجلد':'اختيار المجلد الرئيسي'}</button>`:'<span class="red small">يتطلب Chrome أو Edge</span>'}</div></div>
  <div class="card"><h2><i class="ico i-bell"></i> التنبيهات</h2><div class="row"><label class="f">المدة الافتراضية للتنبيه قبل انتهاء المستند (بالأيام)<input type="number" id="setRemind" min="1" value="${esc(settings.remindDays)}" style="width:140px"></label><button class="btn" data-act="saveSettings" style="align-self:flex-end">حفظ</button></div><p class="muted small">يمكن تغيير المدة لكل مستند على حدة من نافذة تعديله (مثلاً 180 يوماً لجواز السفر).</p></div>
+ <div class="card"><h2><i class="ico i-users"></i> استيراد الأسر من نص</h2><p class="muted small">اسم الأسرة بين قوسين، وبعده كل فرد في سطر مع صلة القرابة بعد الشرطة. الأفراد الموجودين بنفس الاسم ما يتغيّرون.</p><textarea id="famText" rows="8" style="width:100%"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-act="importFamilies">استيراد</button></div></div>
  <div class="card"><h2><i class="ico i-save"></i> النسخ الاحتياطي</h2><p class="muted small">بيانات البرنامج (الأفراد، الصور الشخصية، المستندات ومرفقاتها) محفوظة داخل المتصفح على هذا الجهاز. إذا مُسحت بيانات المتصفح أو تغيّر الجهاز فلن تُستعاد إلا من نسخة احتياطية — لذا احفظ نسخة بشكل دوري.</p>
  <p>آخر نسخة: <b>${bk}</b></p><div class="row"><button class="btn" data-act="exportDl">تنزيل نسخة احتياطية</button>${root?'<button class="btn gold" data-act="exportRoot">حفظ نسخة داخل المجلد الرئيسي</button>':''}<button class="btn ghost" data-act="importBk">استعادة من نسخة احتياطية</button></div></div>`;}
 
@@ -544,6 +545,29 @@ async function writeBlob(dir,name,blob){const fh=await uniqueFile(dir,safeName(n
 async function needWrite(h){return (await h.queryPermission({mode:'readwrite'}))==='granted'||(await h.requestPermission({mode:'readwrite'}))==='granted';}
 
 /* ============ الأوامر ============ */
+function parseFamilyText(txt){const blocks=[];let cur=null;
+ for(const raw of txt.split(/\r?\n/)){const line=raw.trim();if(!line||/^-+$/.test(line))continue;
+  const hm=line.match(/^\((.*)\)$/);
+  if(hm){cur={head:hm[1].trim().replace(/^أسرة\s+/,''),members:[]};blocks.push(cur);continue;}
+  if(!cur)continue;
+  const m=line.match(/^(.+?)\s*-\s*(.+)$/);
+  cur.members.push(m?{name:m[1].trim(),relation:m[2].trim()}:{name:line,relation:''});}
+ return blocks;}
+async function importFamilyText(txt){const blocks=parseFamilyText(txt);if(!blocks.length)return 0;
+ const nm=s=>s.replace(/\s+/g,' ').trim();
+ const find=n=>members.find(x=>nm(x.name)===nm(n));
+ const order=[];let added=0;
+ for(const b of blocks){
+  let head=find(b.head);
+  if(!head){head={id:uid(),name:b.head,relation:'رب الأسرة',isHead:true,family:b.head};await put('members',head);members.push(head);added++;}
+  else if(!head.isHead){head={...head,isHead:true,headId:null};await put('members',head);}
+  order.push('h:'+head.id);
+  for(const m of b.members){
+   if(nm(m.name)===nm(head.name)||find(m.name))continue;
+   const x={id:uid(),name:m.name,relation:m.relation,headId:head.id,family:head.name};
+   await put('members',x);members.push(x);added++;}
+ }
+ settings.familyOrder=order;await put('kv',settings,'settings');await load();return added;}
 const ACT={
  nav:d=>go(d.v),
  gsearch:()=>{const q=$('#gq').value.trim();if(q)go('search',{q});},
@@ -590,6 +614,7 @@ backFam:d=>go('family',{key:d.key}),
  setRoot:async()=>{try{const h=await showDirectoryPicker({mode:'read',id:'root'});await put('kv',h,'root');root=h;view.path=[];render();toast('تم تحديد المجلد الرئيسي ✓');}catch(e){if(e.name!=='AbortError')toast(e.message,true);}},
  diskSearch:()=>{const q=($('#dq')||{}).value?.trim();if(!q)return;view.dq=q;view.path=[];render();},
  clearDisk:()=>{view.dq='';render();},
+ importFamilies:async()=>{const n=await importFamilyText($('#famText').value);render();toast(n?`تمت إضافة ${n} فرد ✓`:'لا يوجد أفراد جدد للإضافة');},
  saveSettings:async()=>{settings.remindDays=Math.max(1,+$('#setRemind').value||60);await put('kv',settings,'settings');render();toast('تم الحفظ ✓');},
  exportDl:async()=>{toast('جارٍ تجهيز النسخة…');const b=await buildBackup();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=bkName();a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);await markBackup();render();toast('تم تنزيل النسخة الاحتياطية ✓');},
  exportRoot:async()=>{if(!(await needWrite(root)))return toast('لم يُمنح إذن الكتابة',true);toast('جارٍ تجهيز النسخة…');const b=await buildBackup();const dir=await root.getDirectoryHandle('النسخ الاحتياطية للأرشيف',{create:true});const n=await writeBlob(dir,bkName(),b);await markBackup();render();toast(`حُفظت النسخة: ${root.name} / النسخ الاحتياطية للأرشيف / ${n} ✓`);},
