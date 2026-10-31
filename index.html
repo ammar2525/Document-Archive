@@ -347,7 +347,7 @@ function renderGrid(){const q=norm(view.q);const g=$('#grid');const VM=vMembers(
 function vFamily(m){const G=famGroups(vMembers()).find(F=>F.k===view.key);
  if(!G)return go('home');
  m.innerHTML=`<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" data-act="nav" data-v="home">→ رجوع إلى الرئيسية</button></div>
- <div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-${G.h?'crown':'folder'}"></i> ${G.h?'أسرة ':''}${esc(G.lbl)} <span class="muted small">(${G.list.length})</span></h2></div>
+ <div class="card"><div class="row between" style="margin-bottom:14px"><h2 style="margin:0"><i class="ico i-${G.h?'crown':'folder'}"></i> ${G.h?'أسرة ':''}${esc(G.lbl)} <span class="muted small">(${G.list.length})</span></h2><button class="btn" data-act="addMemberIn" data-head="${G.h?G.head.id:''}" data-fam="${G.h||G.lbl==='أفراد آخرون'?'':esc(G.lbl)}">＋ إضافة فرد</button></div>
  <div class="members">${G.list.map(x=>memberCardHtml(x,G.k)).join('')}</div></div>`;}
 function docCard(d,showMember){const s=docStatus(d);const T=dtype(d.type);const x=byId(d.memberId);
  return `<div class="card doc ${s.k}"><div class="row between" style="align-items:flex-start"><div><div class="dt">${T[2]} ${esc(d.title||T[1])}</div>${showMember&&x?`<a class="lnk" data-act="openMember" data-id="${x.id}">${esc(x.name)}</a>`:''}</div><span class="badge b-${s.k}">${s.label}</span></div>
@@ -543,6 +543,7 @@ const ACT={
  searchDiskFor:()=>go('library',{dq:view.q}),
  openMember:d=>d.id&&go('member',{id:d.id,fkey:d.fkey||null}),
 openFamily:d=>go('family',{key:d.key}),
+addMemberIn:d=>openMemberForm(d.head?{headId:d.head}:{family:d.fam}),
 backFam:d=>go('family',{key:d.key}),
  tab:d=>{view.tab=d.t;view.path=[];view.flt='all';view.limit=300;render();},
  addMember:()=>openMemberForm({}),
