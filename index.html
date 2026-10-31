@@ -821,8 +821,9 @@ function buildTree(){const VM=vMembers(),ids=new Set(VM.map(x=>x.id)),B=id=>id&&
  const kids={},sps={};for(const[c,p]of Object.entries(parent))(kids[p]=kids[p]||[]).push(byId(c));for(const[s,p]of Object.entries(spouse))(sps[p]=sps[p]||[]).push(byId(s));
  const tops=VM.filter(x=>!parent[x.id]&&!spouse[x.id]);
  return {root,kids,sps,parent,tops:root?tops.filter(x=>x.id!==root.id):tops};}
-function treeCmp(T,pid){return (a,b)=>{const oa=a.treeOrder,ob=b.treeOrder;if(oa!=null&&ob!=null&&oa!==ob)return oa-ob;if(oa!=null&&ob==null)return -1;if(ob!=null&&oa==null)return 1;
+function treeCmp(T,pid){return (a,b)=>{
  if(T.root&&pid===T.root.id){const ia=TREE_KIDS.indexOf(tks(a.name)[0]),ib=TREE_KIDS.indexOf(tks(b.name)[0]);if(ia!==ib)return (ia<0?99:ia)-(ib<0?99:ib);}
+ const oa=a.treeOrder,ob=b.treeOrder;if(oa!=null&&ob!=null&&oa!==ob)return oa-ob;if(oa!=null&&ob==null)return -1;if(ob!=null&&oa==null)return 1;
  if(a.birthDate&&b.birthDate&&a.birthDate!==b.birthDate)return a.birthDate<b.birthDate?-1:1;return (a.created||0)-(b.created||0);};}
 function treeCard(x,lbl,root){const nm=x?x.name:TREE_ROOT_SPOUSE;const sh=tks(nm).length>2?nm.split(/\s+/).slice(0,2).join(' '):nm;
  return `<div class="oc${root?' oroot':''}"${x?` data-act="openMember" data-id="${x.id}"`:''} title="${esc(nm)}">${x?avatar(x):`<div class="av">${esc(nm.charAt(0))}</div>`}<b>${esc(sh)}</b>${lbl?`<small>${esc(lbl)}</small>`:''}</div>`;}
